@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: auralifestyle-api
+    env: node
+    rootDir: fashion-store/fashion-store-backend
+    buildCommand: "npm ci"
+    startCommand: "npm start"
+    autoDeploy: true
+    healthCheckPath: /api/health

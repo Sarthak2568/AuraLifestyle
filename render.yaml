@@ -1,5 +1,4 @@
 # render.yaml — BACKEND (Render)
-
 services:
   - type: web
     name: auralifestyle-api

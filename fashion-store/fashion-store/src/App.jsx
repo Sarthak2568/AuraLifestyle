@@ -20,6 +20,10 @@ import Privacy from "./pages/Privacy";
 import Returns from "./pages/Returns";
 import OrderSuccess from "./pages/OrderSuccess";
 
+// NEW pages
+import Shipping from "./pages/Shipping";
+import Contact from "./pages/Contact";
+
 export default function App() {
   return (
     <StoreProvider>
@@ -45,6 +49,10 @@ export default function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/returns" element={<Returns />} />
+
+            {/* NEW help pages */}
+            <Route path="/help/shipping" element={<Shipping />} />
+            <Route path="/help/contact" element={<Contact />} />
           </Routes>
         </Suspense>
 

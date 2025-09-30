@@ -1,4 +1,4 @@
-import passport from "passport";
+///*import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import MicrosoftStrategy from "passport-microsoft";
 import User from "../models/User.js";
@@ -94,3 +94,4 @@ export function configurePassport() {
     }
   });
 }
+///

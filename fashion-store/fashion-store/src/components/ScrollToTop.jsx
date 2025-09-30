@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-/** Scroll to top on every route change */
-export default function ScrollToTop() {
-  const { pathname, search } = useLocation();
+/** Scroll to the very top whenever the route changes. */
+export default function ScrollToTop({ behavior = "auto" }) {
+  const { pathname, search, hash } = useLocation();
+
   useEffect(() => {
-    // jump fast; use smooth if you prefer
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [pathname, search]);
+    // If you're navigating to an in-page anchor like /men#size-chart, don't override it
+    if (hash) return;
+    window.scrollTo({ top: 0, left: 0, behavior });
+  }, [pathname, search, hash, behavior]);
+
   return null;
 }

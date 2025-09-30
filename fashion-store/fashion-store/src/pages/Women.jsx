@@ -1,31 +1,30 @@
-import React from "react";
-import ProductGrid from "../components/ProductGrid";
+import React, { useMemo } from "react";
 import { useStore } from "../context/StoreContext";
-
-const FALLBACK_WOMEN = [
-  "W-01.png","w-03.jpg","W-04.png","W-05.png",
-  "W-06 f.png","W-06 b.png","W-07 f.png","W-08.png",
-].map((f, i) => ({
-  id: `WOM-${i + 1}`,
-  name: `Women Oversize Tee ${i + 1}`,
-  price: 1099,
-  compareAt: 1499,
-  gender: "women",
-  images: [{ url: `/images/${f}` }],
-  cover: `/images/${f}`,
-  tags: ["women", "tee", "oversized"],
-}));
+import ALL from "../data/products";
+import ProductCard from "../components/ProductCard";
 
 export default function Women() {
   const { products } = useStore();
-  const women = (products || []).filter((p) => p?.gender === "women");
 
-  const data = women.length ? women : FALLBACK_WOMEN;
+  const list = useMemo(() => {
+    const source = Array.isArray(products) && products.length ? products : ALL;
+    return (source || []).filter(
+      (p) => (p.gender || "").toString().toLowerCase() === "women"
+    );
+  }, [products]);
 
   return (
-    <div className="mx-auto max-w-[1400px] px-3 sm:px-4 lg:px-6 my-8">
-      <h1 className="text-2xl sm:text-3xl font-extrabold mb-4">Women</h1>
-      <ProductGrid products={data} />
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-4">Women</h1>
+      {list.length ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+          {list.map((p) => (
+            <ProductCard key={p.id || p.slug || p.title || p.name} product={p} />
+          ))}
+        </div>
+      ) : (
+        <div className="opacity-70">No products found.</div>
+      )}
     </div>
   );
 }

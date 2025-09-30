@@ -1,42 +1,85 @@
-// src/components/HeroCarousel.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
- * Update the paths if your assets live elsewhere.
- * Make sure the video slide keeps id "hero-01".
+ * Tweak 'focal' to keep faces in frame (only used when fit="cover").
+ * Lower second value shows more top (e.g., "50% 22%"), higher shows more bottom ("50% 40%").
  */
 const SLIDES = [
-  {
-    id: "hero-01",
-    kind: "video",
-    src: "/videos/hero-01.mp4",   // ← change if needed
-    poster: "/images/hero-01.jpg" // optional poster
-  },
-  {
-    id: "hero-02",
-    kind: "image",
-    src: "/images/hero-02.jpg"    // ← change if needed
-  },
-  {
-    id: "hero-03",
-    kind: "image",
-    src: "/images/hero-03.jpg"    // ← change if needed
-  }
+  { id: "hero-01", kind: "video", src: "/videos/hero-1.mp4", poster: "/images/hero-1.jpg", focal: "50% 32%" },
+  { id: "hero-02", kind: "video", src: "/videos/fvideo.mp4", focal: "50% 26%" },
+  { id: "hero-03", kind: "image", src: "/images/hero-03.jpg", focal: "50% 28%" },
 ];
 
-// Autoplay timings
-const DEFAULT_DELAY = 4500;               // normal slides
-const HOLD_MS_MAP = { "hero-01": 10000 }; // ≥10s hold for the video slide
+const DEFAULT_DELAY = 4500;
+const HOLD_MS_MAP = { "hero-01": 10000 };
 
-export default function HeroCarousel() {
+/* Measure any fixed header (only used if offsetHeader=true) */
+function measureTopFixedOffset() {
+  const explicit =
+    document.querySelector("[data-nav]") ||
+    document.querySelector("#navbar") ||
+    document.querySelector("header[role=banner]") ||
+    document.querySelector(".site-header") ||
+    document.querySelector("header") ||
+    document.querySelector("nav");
+
+  const fixedTop = Array.from(document.body.querySelectorAll("*")).filter((el) => {
+    const cs = window.getComputedStyle(el);
+    return cs.position === "fixed" && (cs.top === "0px" || cs.top === "0") && el.offsetHeight > 0 && el.offsetWidth > 0;
+  });
+
+  let h = 0;
+  if (fixedTop.length) h = Math.max(...fixedTop.map((el) => Math.round(el.getBoundingClientRect().height)));
+  if (!h && explicit) h = Math.round(explicit.getBoundingClientRect().height);
+  return h || 72; // fallback
+}
+
+/**
+ * Props:
+ * - variant: "default" | "tall" (height preset)
+ * - fit: "cover" | "contain"  -> "contain" shows the entire frame (no crop)
+ * - offsetHeader: boolean     -> add margin-top to sit below any fixed header
+ */
+export default function HeroCarousel({ variant = "default", fit = "cover", offsetHeader = false }) {
+  const tall = variant === "tall";
+  const fitContain = fit === "contain";
+
   const [idx, setIdx] = useState(0);
+  const [topOffset, setTopOffset] = useState(72);
   const videoRef = useRef(null);
+
+  // Height presets
+  const heightClasses = tall
+    ? "h-[82vw] sm:h-[62vw] md:h-[52vw] lg:h-[46vw] xl:h-[42vw] min-h-[420px] max-h-[960px]"
+    : "h-[68vw] sm:h-[54vw] md:h-[46vw] lg:h-[40vw] xl:h-[36vw] min-h-[340px] max-h-[880px]";
+
+  // Only add header offset if explicitly requested
+  useLayoutEffect(() => {
+    if (!offsetHeader) return;
+    const update = () => setTopOffset(measureTopFixedOffset());
+    update();
+    window.addEventListener("resize", update);
+    const header =
+      document.querySelector("[data-nav]") ||
+      document.querySelector("#navbar") ||
+      document.querySelector("header") ||
+      document.querySelector("nav");
+    let ro;
+    if (header && "ResizeObserver" in window) {
+      ro = new ResizeObserver(update);
+      ro.observe(header);
+    }
+    return () => {
+      window.removeEventListener("resize", update);
+      ro?.disconnect();
+    };
+  }, [offsetHeader]);
 
   const next = () => setIdx((i) => (i + 1) % SLIDES.length);
   const prev = () => setIdx((i) => (i - 1 + SLIDES.length) % SLIDES.length);
 
-  // simple preload of the next image for smoother transitions
+  // Preload next image
   useEffect(() => {
     const n = SLIDES[(idx + 1) % SLIDES.length];
     if (n?.kind === "image") {
@@ -45,7 +88,7 @@ export default function HeroCarousel() {
     }
   }, [idx]);
 
-  // Autoplay with enforced ≥10s hold for the video slide
+  // Autoplay (longer hold for video)
   useEffect(() => {
     let timer;
     const active = SLIDES[idx];
@@ -54,27 +97,33 @@ export default function HeroCarousel() {
     if (active?.kind === "video") {
       const v = videoRef.current;
       if (v) {
-        v.currentTime = 0;
-        v.muted = true;       // required for autoplay on mobile
-        v.playsInline = true;
-        v.play?.().catch(() => {});
+        try {
+          v.currentTime = 0;
+          v.muted = true;
+          v.playsInline = true;
+          v.play?.();
+        } catch {}
       }
       timer = setTimeout(next, hold);
     } else {
-      // pause any previous video to save CPU
       videoRef.current?.pause?.();
       timer = setTimeout(next, DEFAULT_DELAY);
     }
-
     return () => clearTimeout(timer);
   }, [idx]);
 
+  const mediaClass = `w-full h-full ${fitContain ? "object-contain" : "object-cover"}`;
+
   return (
-    <div className="relative w-full">
-      {/* viewport (keeps height consistent; adjust aspect if you like) */}
-      <div className="relative aspect-[21/9] md:aspect-[16/6] lg:aspect-[16/5] overflow-hidden">
+    <section
+      className="relative w-full"
+      style={offsetHeader ? { marginTop: `${topOffset}px` } : undefined}
+    >
+      {/* Responsive height; object-fit governs cropping */}
+      <div className={`relative w-full ${heightClasses} overflow-hidden ${fitContain ? "bg-black" : ""}`}>
         {SLIDES.map((s, i) => {
           const isActive = i === idx;
+          const style = fitContain ? undefined : { objectPosition: s.focal || "50% 30%" };
           return (
             <div
               key={s.id}
@@ -84,20 +133,22 @@ export default function HeroCarousel() {
             >
               {s.kind === "video" ? (
                 <video
-                  ref={isActive ? videoRef : null} // attach ref only to active video
+                  ref={isActive ? videoRef : null}
                   src={s.src}
-                  poster={s.poster}
+                  poster={s.poster || "/images/placeholder.jpg"}
                   muted
                   playsInline
                   loop
                   preload="metadata"
-                  className="w-full h-full object-cover"
+                  className={mediaClass}
+                  style={style}
                 />
               ) : (
                 <img
                   src={s.src}
                   alt=""
-                  className="w-full h-full object-cover"
+                  className={mediaClass}
+                  style={style}
                 />
               )}
             </div>
@@ -131,13 +182,11 @@ export default function HeroCarousel() {
           <button
             key={s.id}
             onClick={() => setIdx(i)}
-            className={`h-2 w-2 rounded-full transition ${
-              i === idx ? "bg-white" : "bg-white/50 hover:bg-white/80"
-            }`}
+            className={`h-2 w-2 rounded-full transition ${i === idx ? "bg-white" : "bg-white/50 hover:bg-white/80"}`}
             aria-label={`Go to slide ${i + 1}`}
           />
         ))}
       </div>
-    </div>
+    </section>
   );
 }

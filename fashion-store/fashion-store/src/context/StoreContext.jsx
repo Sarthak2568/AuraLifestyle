@@ -1,132 +1,269 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import ALL_PRODUCTS from "../data/products";
+// src/context/StoreContext.jsx
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { authApi, productsApi } from "../lib/api";
 
-const readLS = (k, fallback) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
-const writeLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const Ctx = createContext(null);
+export const useStore = () => useContext(Ctx);
 
-const StoreContext = createContext(null);
-export const useStore = () => useContext(StoreContext);
-
-// ---------- NORMALIZE ONE CART ITEM ----------
-const normalizeItem = (itemLike) => {
-  const id = itemLike?.id || itemLike?._id || itemLike?.slug || itemLike?.name || itemLike?.title;
-  const title = itemLike?.title || itemLike?.name || "Product";
-  const image = itemLike?.image || itemLike?.cover || itemLike?.images?.[0]?.url || "/images/placeholder.jpg";
-  const rawPrice = itemLike?.price ?? itemLike?.salePrice ?? 0;
-  const price = Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : 0;
-  const mrp = itemLike?.mrp ?? itemLike?.compareAt ?? price;
-  const size = itemLike?.size || itemLike?.selectedSize || "";
-  const color = itemLike?.color || itemLike?.selectedColor || "";
-  const qty = Math.max(1, Math.min(99, Number(itemLike?.qty) || 1));
-  const key = `${id}-${size}-${color}`;
-  return { key, id, title, image, price, mrp, size, color, qty };
+// ---------- utils ----------
+const readLS = (k, fallback) => {
+  try {
+    const v = localStorage.getItem(k);
+    return v ? JSON.parse(v) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const writeLS = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {}
 };
 
-// ---------- MIGRATE ENTIRE CART FROM LS ----------
-const loadCart = () => {
-  const raw = readLS("aura:cart", []);
-  const arr = Array.isArray(raw) ? raw : [];
-  const normalized = arr
-    .map(normalizeItem)
-    .filter((i) => i.id && Number.isFinite(i.price) && i.price > 0); // drop broken/zero items
-  writeLS("aura:cart", normalized);
-  return normalized;
-};
+const slugify = (s = "") =>
+  s
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
 
-export default function StoreProvider({ children }) {
-  // catalog present so PDP can always resolve
-  const [products, setProducts] = useState(ALL_PRODUCTS);
+const itemKey = (o) => `${o.id}|${o.size || ""}|${o.color || ""}`;
 
-  // cart / wishlist
-  const [cart, setCart] = useState(loadCart);
-  const [wishlist, setWishlist] = useState(readLS("aura:wishlist", []));
-  useEffect(() => writeLS("aura:cart", cart), [cart]);
-  useEffect(() => writeLS("aura:wishlist", wishlist), [wishlist]);
+// ---------- provider ----------
+function StoreProvider({ children }) {
+  // --- auth ---
+  const [user, setUser] = useState(() => readLS("user", null));
+  const [token, setToken] = useState(() => localStorage.getItem("token") || "");
 
-  // shipping (address)
-  const [shipping, setShipping] = useState(
-    readLS("aura:shipping", { fullName: "", phone: "", pincode: "", address1: "", address2: "", city: "", state: "" })
-  );
-  useEffect(() => writeLS("aura:shipping", shipping), [shipping]);
-
-  // minimal auth
-  const [user, setUser] = useState(readLS("aura:user", null));
-  const signup = async ({ name, email, phone }) => { const u = { id: crypto.randomUUID?.() || Date.now(), name, email, phone }; setUser(u); writeLS("aura:user", u); return u; };
-  const login = async ({ emailOrPhone }) => {
-    const existing = readLS("aura:user", null);
-    if (existing && (existing.email === emailOrPhone || existing.phone === emailOrPhone)) { setUser(existing); return existing; }
-    const u = { id: crypto.randomUUID?.() || Date.now(), name: "Guest", email: emailOrPhone.includes("@") ? emailOrPhone : "", phone: emailOrPhone.includes("@") ? "" : emailOrPhone };
-    setUser(u); writeLS("aura:user", u); return u;
+  const logout = () => {
+    setUser(null);
+    setToken("");
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
   };
-  const logout = () => { setUser(null); localStorage.removeItem("aura:user"); };
 
-  // theme
-  const [theme, setTheme] = useState(readLS("aura:theme", "light"));
-  useEffect(() => { const root = document.documentElement; if (theme === "dark") root.classList.add("dark"); else root.classList.remove("dark"); writeLS("aura:theme", theme); }, [theme]);
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const loginRequestOtp = async (email, name = "") => {
+    await authApi.requestOtp(email, name);
+    return true;
+  };
 
-  // ------ CART HELPERS ------
-  const addToCart = (itemLike) => {
-    const item = normalizeItem(itemLike);
-    if (!item.id || item.price <= 0) return;
+  const loginVerifyOtp = async (email, code) => {
+    const { token: jwt, user: u } = await authApi.verifyOtp(email, code);
+    setUser(u);
+    setToken(jwt);
+    localStorage.setItem("user", JSON.stringify(u));
+    localStorage.setItem("token", jwt);
+    return u;
+  };
+
+  // --- products (fetch from backend; fallback=[]) ---
+  const [products, setProducts] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    productsApi
+      .list()
+      .then((list) => {
+        if (!alive) return;
+        setProducts(Array.isArray(list) ? list : []);
+      })
+      .catch(() => setProducts([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Index for local, synchronous product lookups (keeps old API alive)
+  const index = useMemo(() => {
+    const map = new Map();
+    (products || []).forEach((p) => {
+      const titleSlug = slugify(p?.title || p?.name || p?.id);
+      [p?.id, p?.slug, p?.handle, p?.sku, titleSlug]
+        .filter(Boolean)
+        .forEach((k) => map.set(String(k), p));
+    });
+    return map;
+  }, [products]);
+
+  const getProductSync = useCallback(
+    (key) => (key ? index.get(String(key)) || null : null),
+    [index]
+  );
+
+  // --- cart / wishlist (LS backed) ---
+  const [cart, setCart] = useState(() => readLS("cart", []));
+  const [wishlist, setWishlist] = useState(() => readLS("wishlist", []));
+
+  useEffect(() => writeLS("cart", cart), [cart]);
+  useEffect(() => writeLS("wishlist", wishlist), [wishlist]);
+
+  const addToCart = (item) => {
+    if (!item?.id) return;
+    const price = Number.isFinite(Number(item.price)) ? Number(item.price) : 0;
+    const mrp = Number.isFinite(Number(item.mrp)) ? Number(item.mrp) : price;
+
+    const normalized = {
+      id: item.id,
+      title: item.title || item.name || "Product",
+      image:
+        item.image ||
+        item.cover ||
+        item.images?.[0]?.url ||
+        item.images?.[0] ||
+        "/images/placeholder.jpg",
+      price,
+      mrp,
+      size: item.size || "",
+      color: item.color || "",
+      qty: Math.max(1, Math.min(99, Number(item.qty) || 1)),
+    };
+
     setCart((prev) => {
-      const idx = prev.findIndex((p) => p.key === item.key);
+      const key = itemKey(normalized);
+      const next = prev.map((p) => ({ ...p, _k: itemKey(p) }));
+      const idx = next.findIndex((p) => p._k === key);
       if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], qty: Math.min(99, next[idx].qty + item.qty) };
+        next[idx] = {
+          ...next[idx],
+          qty: Math.min(99, (next[idx].qty || 1) + normalized.qty),
+        };
+        delete next[idx]._k;
         return next;
       }
-      return [...prev, item];
+      return [...prev, normalized];
     });
   };
 
-  const setCartQty = (key, qtyLike) => {
+  // Flexible qty setter: accepts (id, qty, size, color) OR (itemObj, qty) OR (keyString, qty)
+  const setCartQty = (a, qtyLike, size, color) => {
     const qty = Math.max(1, Math.min(99, Number(qtyLike) || 1));
-    setCart((prev) => prev.map((p) => (p.key === key ? { ...p, qty } : p)));
+    let key;
+    if (typeof a === "string" && (size !== undefined || color !== undefined)) {
+      key = `${a}|${size || ""}|${color || ""}`;
+    } else if (typeof a === "object" && a) {
+      key = itemKey(a);
+    } else {
+      key = a; // already a key string
+    }
+    setCart((prev) =>
+      prev.map((p) => (itemKey(p) === key ? { ...p, qty } : p))
+    );
   };
 
-  const removeFromCart = (arg1, arg2) => {
-    const key = arg2 || arg1;
-    setCart((prev) => prev.filter((p) => p.key !== key));
+  // Back-compat with older Cart.jsx that calls updateCartQty(id, n, size, color)
+  const updateCartQty = (id, n, size, color) => setCartQty(id, n, size, color);
+
+  // Flexible remover: (id, size, color) OR (itemObj) OR (keyString)
+  const removeFromCart = (...args) => {
+    let key;
+    if (args.length === 1 && typeof args[0] === "object") {
+      key = itemKey(args[0]);
+    } else if (args.length >= 1) {
+      const [id, size, color] = args;
+      if (typeof id === "string" && (size !== undefined || color !== undefined)) {
+        key = `${id}|${size || ""}|${color || ""}`;
+      } else {
+        key = id; // assume key string
+      }
+    }
+    if (!key) return;
+    setCart((prev) => prev.filter((p) => itemKey(p) !== key));
   };
 
-  const moveCartItemToWishlist = (key) => {
-    const found = cart.find((p) => p.key === key);
-    if (!found) return;
-    setWishlist((w) => (w.some((x) => x.id === found.id) ? w : [...w, { id: found.id }]));
-    removeFromCart(key);
-  };
+  const clearCart = () => setCart([]);
 
-  const addToWishlist = (id) => setWishlist((prev) => (prev.some((w) => w.id === id) ? prev : [...prev, { id }] ));
-  const removeFromWishlist = (id) => setWishlist((prev) => prev.filter((w) => w.id !== id));
-  const moveWishlistToCart = (id) => { addToCart({ id, qty: 1, price: (ALL_PRODUCTS.find(p=>p.id===id)?.price)||1 }); removeFromWishlist(id); };
   const toggleWishlist = (itemOrId) => {
-    const id = typeof itemOrId === "string" ? itemOrId : itemOrId?.id;
+    const id =
+      typeof itemOrId === "string" ? itemOrId : itemOrId?.id || itemOrId?.slug;
     if (!id) return;
-    setWishlist((prev) => (prev.some((w) => w.id === id) ? prev.filter((w) => w.id !== id) : [...prev, { id }]));
+    setWishlist((prev) => {
+      const exists = prev.some((w) => String(w.id) === String(id));
+      if (exists) return prev.filter((w) => String(w.id) !== String(id));
+      const p = getProductSync(id) || itemOrId || {};
+      return [
+        ...prev,
+        {
+          id: id,
+          title: p.title || p.name || "Product",
+          image:
+            p.image ||
+            p.cover ||
+            p.images?.[0]?.url ||
+            p.images?.[0] ||
+            "/images/placeholder.jpg",
+          price: p.price || 0,
+        },
+      ];
+    });
   };
 
-  // totals (guard every number)
-  const totals = useMemo(() => {
-    const safeMul = (a, b) => (Number.isFinite(Number(a)) && Number.isFinite(Number(b)) ? Number(a) * Number(b) : 0);
-    const mrpTotal = cart.reduce((s, i) => s + safeMul(i.mrp ?? i.price, i.qty), 0);
-    const subtotal = cart.reduce((s, i) => s + safeMul(i.price, i.qty), 0);
-    const savings = Math.max(0, mrpTotal - subtotal);
-    const items = cart.reduce((n, i) => n + (Number.isFinite(Number(i.qty)) ? Number(i.qty) : 0), 0);
-    return { mrpTotal, subtotal, savings, items };
-  }, [cart]);
+  // Back-compat helpers used in some Cart code
+  const moveToWishlist = (cartItem) => {
+    if (!cartItem?.id) return;
+    setWishlist((prev) =>
+      prev.some((w) => String(w.id) === String(cartItem.id))
+        ? prev
+        : [...prev, { id: cartItem.id }]
+    );
+    removeFromCart(cartItem);
+  };
 
-  const value = useMemo(() => ({
-      products, setProducts,
-      cart, wishlist, totals,
-      user, theme, shipping,
-      addToCart, setCartQty, removeFromCart, moveCartItemToWishlist,
-      addToWishlist, removeFromWishlist, moveWishlistToCart, toggleWishlist,
-      signup, login, logout,
-      toggleTheme, setTheme, setShipping,
+  const moveWishlistToCart = (id) => {
+    const p = getProductSync(id);
+    if (!p) return;
+    addToCart({ id, price: p.price || 1, title: p.title, image: p.image });
+    setWishlist((prev) => prev.filter((w) => String(w.id) !== String(id)));
+  };
+
+  const value = useMemo(
+    () => ({
+      // auth
+      user,
+      token,
+      logout,
+      loginRequestOtp,
+      loginVerifyOtp,
+
+      // catalog
+      products,
+      setProducts,
+      getProductSync,
+
+      // cart + wishlist
+      cart,
+      addToCart,
+      setCartQty,
+      updateCartQty, // legacy alias
+      removeFromCart,
+      clearCart,
+
+      wishlist,
+      toggleWishlist,
+      moveToWishlist,
+      moveWishlistToCart,
     }),
-    [products, cart, wishlist, totals, user, theme, shipping]
+    [
+      user,
+      token,
+      products,
+      cart,
+      wishlist,
+      // stable fns are fine, but include to be explicit:
+      logout,
+      loginRequestOtp,
+      loginVerifyOtp,
+      getProductSync,
+    ]
   );
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
+
+export default StoreProvider;

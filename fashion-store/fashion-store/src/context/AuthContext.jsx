@@ -1,44 +1,47 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState } from "react";
+import { useStore } from "./StoreContext";
 
-const AuthCtx = createContext(null);
+// Auth adapter that proxies to StoreContext so there's only one user state.
+const AuthContext = createContext(null);
+export const useAuth = () => useContext(AuthContext);
 
-export function AuthProvider({ children }) {
-  const [isOpen, setOpen] = useState(false);
-  const [mode, setMode] = useState("login"); // "login" | "signup"
-  const [draft, setDraft] = useState({ name: "", email: "", phone: "" });
-  const [user, setUser] = useState(null);
+export default function AuthProvider({ children }) {
+  const { user, signup: storeSignup, login: storeLogin, logout: storeLogout } = useStore();
+  const [isOpen, setIsOpen] = useState(false);
+  const open = () => setIsOpen(true);
+  const close = () => setIsOpen(false);
 
-  const openAuth = useCallback((m = "login") => {
-    setMode(m);
-    setDraft({ name: "", email: "", phone: "" });
-    setOpen(true);
-  }, []);
+  const login = async ({ emailOrPhone }) => {
+    const u = await storeLogin({ emailOrPhone });
+    setIsOpen(false);
+    return u;
+  };
 
-  const closeAuth = useCallback(() => setOpen(false), []);
-  const signOut = useCallback(() => setUser(null), []);
+  const signup = async ({ name, email, phone }) => {
+    const u = await storeSignup({ name, email, phone });
+    setIsOpen(false);
+    return u;
+  };
 
-  const value = useMemo(
-    () => ({
-      isOpen,
-      openAuth,
-      closeAuth,
-      mode,
-      setMode,
-      draft,
-      setDraft,
-      user,
-      setUser,
-      signOut,
-      isSignedIn: !!user
-    }),
-    [isOpen, openAuth, closeAuth, mode, draft, user, signOut]
-  );
+  const logout = () => {
+    storeLogout();
+    setIsOpen(false);
+  };
 
-  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
-}
+  // Compatibility aliases (some components might call different names)
+  const value = useMemo(() => ({
+    user,
+    isOpen,
+    open,
+    close,
+    showAuth: open,
+    hideAuth: close,
+    setOpen: setIsOpen,
+    toggle: () => setIsOpen(v => !v),
+    login,
+    signup,
+    logout,
+  }), [user, isOpen]);
 
-export function useAuth() {
-  const ctx = useContext(AuthCtx);
-  if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
-  return ctx;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

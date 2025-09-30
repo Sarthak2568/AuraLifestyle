@@ -1,14 +1,11 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const connectDB = async () => {
-  try {
-    const uri = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/auralifestyle";
-    await mongoose.connect(uri, { dbName: uri.split("/").pop() });
-    console.log("✅ MongoDB Connected");
-  } catch (err) {
-    console.error("❌ MongoDB connection failed", err.message);
-    process.exit(1);
-  }
-};
+export async function connectDB() {
+  const uri = process.env.MONGO_URI;
+  if (!uri) throw new Error('MONGO_URI missing in env');
+  const dbName = process.env.MONGO_DB_NAME || 'auralifestyle';
 
-export default connectDB;
+  mongoose.set('strictQuery', true);
+  await mongoose.connect(uri, { dbName });
+  console.log('✅ MongoDB connected:', mongoose.connection.name);
+}

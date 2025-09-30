@@ -3,8 +3,32 @@
 
 export const ALL_PRODUCTS = [
   // ---------- MEN ----------
-  { id: "m-01", title: "Aurora Graphic Oversized Tee", price: 799, mrp: 1199, image: "/images/M-01.png", gender: "men", sizes:["S","M","L","XL"], colors:["Black","White"] },
-  { id: "m-02", title: "Street Joggers",                  price: 1299, mrp: 1699, image: "/images/M-02.png", gender: "men", sizes:["S","M","L","XL"], colors:["Grey","Black"] },
+{
+  id: "MEN-ROSE-DRESS",
+  slug: "rose-slit-dress",
+  title: "Rose Slit Dress",
+  price: 2199,
+  mrp: 2499,
+  gender: "men",
+
+  colors: ["Black", "White"],
+  colorSwatches: { Black: "#0a0a0a", White: "#f6f6f6" },
+  sizes: ["S", "M", "L", "XL"],
+
+  // ✅ add this for listing cards
+  image: "/images/M-01.png",
+
+  // ✅ keep paths consistent with your other items
+  imagesByColor: {
+    Black: ["/images/M-01.png"],
+    White: ["/images/M-02.png"]
+  },
+
+  // ✅ gallery fallback (optional but safe)
+  images: ["/images/M-01.png"]
+},
+  //{ id: "m-01", title: "Aurora Graphic Oversized Tee", price: 799, mrp: 1199, image: "/images/M-01.png", gender: "men", sizes:["S","M","L","XL"], colors:["Black","White"] },
+  //{ id: "m-02", title: "Street Joggers",                  price: 1299, mrp: 1699, image: "/images/M-02.png", gender: "men", sizes:["S","M","L","XL"], colors:["Grey","Black"] },
   { id: "m-03", title: "Core Polo",                       price: 999,  mrp: 1299, image: "/images/M-03.png", gender: "men", sizes:["S","M","L","XL"], colors:["Navy","Olive"] },
   { id: "m-04", title: "Everyday Hoodie",                 price: 1499, mrp: 1999, image: "/images/M-04.png", gender: "men", sizes:["S","M","L","XL"], colors:["Charcoal"] },
   { id: "m-05", title: "Relaxed Denim",                   price: 1599, mrp: 2199, image: "/images/M-05.jpg", gender: "men", sizes:["S","M","L","XL"], colors:["Blue"] },

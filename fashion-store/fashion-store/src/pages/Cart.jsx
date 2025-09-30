@@ -1,276 +1,591 @@
-import React, { useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+// src/pages/Cart.jsx
+import React, { useMemo, useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
 import { useToast } from "../context/ToastContext";
+import CheckoutSteps from "../components/CheckoutSteps";
 import ALL_PRODUCTS from "../data/products";
-import { colorHex } from "../data/productMeta";
 
-export default function Cart() {
-  const { cart, setCartQty, removeFromCart, moveCartItemToWishlist, totals, shipping, setShipping, addToCart } = useStore();
-  const { show } = useToast();
-  const nav = useNavigate();
+/* -------------------------------------------------------------
+   Helpers
+-------------------------------------------------------------- */
+const formatINR = (n) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(Math.max(0, Math.round(Number(n || 0))));
 
-  const [form, setForm] = useState(shipping);
-  const [touched, setTouched] = useState(false);
-  const [coupon, setCoupon] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState(null); // {code, kind:'percent'|'flat', value}
-  const [giftWrap, setGiftWrap] = useState(false);
-  const [usePoints, setUsePoints] = useState(false);
+function useSafeToast() {
+  const ctx = useToast?.();
+  return ctx?.show || (() => {});
+}
 
-  const valid = useMemo(() => {
-    const phoneOk = /^\d{10}$/.test(form.phone || "");
-    const pinOk = /^\d{6}$/.test(form.pincode || "");
-    return Boolean(form.fullName && phoneOk && pinOk && form.address1 && form.city && form.state);
-  }, [form]);
+function subtotalOf(cart = []) {
+  return cart.reduce(
+    (s, it) => s + Number(it.price || 0) * Number(it.qty || 1),
+    0
+  );
+}
 
-  const onChange = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+/* Demo gift-card vault (replace with backend when ready) */
+const GIFT_CARDS = {
+  AURA100: 100,
+  WELCOME50: 50,
+  DIWALI250: 250,
+};
 
-  // ---- Suggestions (You may also like)
-  const picks = useMemo(() => {
-    const inCart = new Set(cart.map((c) => c.id));
-    // use gender of the first cart item, else null
-    const first = ALL_PRODUCTS.find((p) => p.id === cart[0]?.id);
-    const g = first?.gender;
-    const pool = ALL_PRODUCTS.filter((p) => (g ? p.gender === g : true) && !inCart.has(p.id));
-    // stable 3 picks
-    return pool.slice(0, 3);
-  }, [cart]);
+/* -------------------------------------------------------------
+   Delivery form (email + arrows + small UX wins)
+-------------------------------------------------------------- */
+function DeliveryForm({ onPlace, pending }) {
+  const saved = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("checkout_address") || "{}");
+    } catch {
+      return {};
+    }
+  })();
 
-  // ---- Price math with extras
-  const discountFromCoupon = useMemo(() => {
-    if (!appliedCoupon) return 0;
-    const base = totals.subtotal;
-    if (appliedCoupon.kind === "percent") return Math.round((base * appliedCoupon.value) / 100);
-    return Math.min(appliedCoupon.value, base);
-  }, [appliedCoupon, totals.subtotal]);
+  const [fullName, setFullName] = useState(saved.fullName || "");
+  const [email, setEmail] = useState(saved.email || "");
+  const [phone, setPhone] = useState(saved.phone || "");
+  const [pincode, setPincode] = useState(saved.pincode || "");
+  const [addr1, setAddr1] = useState(saved.address1 || "");
+  const [addr2, setAddr2] = useState(saved.address2 || "");
+  const [city, setCity] = useState(saved.city || "");
+  const [state, setState] = useState(saved.state || "");
+  const [remember, setRemember] = useState(Boolean(saved.remember));
 
-  const pointsValue = useMemo(() => (usePoints ? 50 : 0), [usePoints]); // flat ₹50 off
-  const wrapFee = giftWrap ? 25 : 0;
-  const taxable = Math.max(0, totals.subtotal - discountFromCoupon - pointsValue);
-  const gst = Math.round(taxable * 0.05);
-  const grand = Math.max(0, taxable + gst + wrapFee);
+  // auto-save as they type
+  useEffect(() => {
+    const snapshot = {
+      fullName,
+      email,
+      phone,
+      pincode,
+      address1: addr1,
+      address2: addr2,
+      city,
+      state,
+      remember,
+    };
+    localStorage.setItem("checkout_address", JSON.stringify(snapshot));
+  }, [fullName, email, phone, pincode, addr1, addr2, city, state, remember]);
 
-  // ---- Apply coupon
-  const applyCoupon = () => {
-    const code = coupon.trim().toUpperCase();
-    if (!code) return;
-    if (code === "AURA10") setAppliedCoupon({ code, kind: "percent", value: 10 });
-    else if (code === "WELCOME50") setAppliedCoupon({ code, kind: "flat", value: 50 });
-    else { setAppliedCoupon(null); show({ type: "info", title: "Invalid coupon", message: "Try AURA10 or WELCOME50" }); }
-  };
+  const validPhone = /^\d{10}$/.test(phone);
+  const validPin = /^\d{6}$/.test(pincode);
+  const validEmail =
+    !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); // optional but must be valid if entered
 
-  if (!cart.length) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 py-14">
-        <h1 className="text-2xl font-bold mb-1">My Bag</h1>
-        <div className="text-sm opacity-70 mb-6">BAG — ADDRESS — PAYMENT</div>
-        <p className="opacity-70 mb-6">Your cart is empty.</p>
-        <Link to="/men" className="px-4 py-2 rounded bg-black text-white">Shop Men</Link>
-        <Link to="/women" className="ml-3 px-4 py-2 rounded border">Shop Women</Link>
-      </div>
-    );
-  }
+  const valid =
+    fullName.trim() &&
+    validPhone &&
+    validPin &&
+    validEmail &&
+    addr1.trim() &&
+    city.trim() &&
+    state.trim();
+
+  // super simple ETA rule: metro-ish pins start with 1/2/4; else add a day
+  const eta = useMemo(() => {
+    if (!validPin) return null;
+    const d = ["1", "2", "4"].includes(String(pincode)[0]) ? "2–4 days" : "3–5 days";
+    return d;
+  }, [pincode, validPin]);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-end justify-between mb-2">
-        <h1 className="text-2xl font-bold">My Bag</h1>
-        <div className="text-sm opacity-70">BAG — ADDRESS — PAYMENT</div>
+    <div className="rounded-2xl border border-neutral-200/70 dark:border-neutral-800 p-4">
+      <div className="flex items-center justify-between">
+        <div className="font-semibold">Delivery Details</div>
+        {eta ? (
+          <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">
+            ETA: {eta}
+          </span>
+        ) : null}
       </div>
 
-      <div className="grid lg:grid-cols-[2fr_1fr] gap-8">
-        {/* Items */}
-        <div className="space-y-4">
-          {cart.map((item) => {
-            const hex = colorHex(item.id, item.color);
-            return (
-              <div key={item.key} className="flex gap-4 p-4 border rounded-xl bg-white/80 shadow-sm">
-                <img
-                  src={item.image || "/images/placeholder.jpg"}
-                  alt={item.title}
-                  className="w-24 h-24 object-cover rounded-lg border"
-                  onError={(e) => (e.currentTarget.src = "/images/placeholder.jpg")}
-                />
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-medium">{item.title}</h3>
-                      <div className="text-xs opacity-70">Oversized T-Shirts</div>
-                      <div className="mt-1 flex items-center gap-3 text-sm opacity-80">
-                        <span>Size: {item.size || "-"}</span>
-                        <span className="flex items-center gap-1">
-                          Color: {item.color || "-"}
-                          <span className="inline-block h-3 w-3 rounded-full border" style={{ background: hex }} />
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold">₹{(item.price * item.qty).toFixed(0)}</div>
-                      {item.mrp && item.mrp > item.price && (
-                        <div className="text-xs line-through opacity-60">₹{(item.mrp * item.qty).toFixed(0)}</div>
-                      )}
-                    </div>
-                  </div>
+      <div className="space-y-3 mt-2">
+        <input
+          className="w-full rounded-md border px-3 py-2 bg-white dark:bg-neutral-900"
+          placeholder="Full Name"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
 
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="flex items-center border rounded-lg">
-                      <button type="button" className="px-3 py-1" onClick={() => setCartQty(item.key, item.qty - 1)}>−</button>
-                      <input
-                        className="w-12 text-center bg-transparent py-1 outline-none"
-                        value={item.qty}
-                        onChange={(e) => setCartQty(item.key, e.target.value)}
-                      />
-                      <button type="button" className="px-3 py-1" onClick={() => setCartQty(item.key, item.qty + 1)}>+</button>
-                    </div>
+        <input
+          type="email"
+          className={`w-full rounded-md border px-3 py-2 bg-white dark:bg-neutral-900 ${
+            email && !validEmail ? "border-rose-400" : ""
+          }`}
+          placeholder="Email (for receipts)"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
 
-                    <button type="button" onClick={() => moveCartItemToWishlist(item.key)} className="text-sm opacity-70 hover:opacity-100">
-                      Move to Wishlist
-                    </button>
-                    <button type="button" onClick={() => removeFromCart(item.key)} className="text-sm opacity-70 hover:opacity-100">
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* YOU MAY ALSO LIKE */}
-          {picks.length ? (
-            <div className="mt-4 border rounded-xl p-4">
-              <div className="font-semibold mb-3">You may also like</div>
-              <div className="grid sm:grid-cols-3 gap-3">
-                {picks.map((p) => (
-                  <div key={p.id} className="border rounded-xl overflow-hidden bg-white">
-                    <div className="aspect-[4/3] overflow-hidden">
-                      <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="p-3">
-                      <div className="text-sm line-clamp-1">{p.title}</div>
-                      <div className="text-sm font-semibold">₹{p.price}</div>
-                      <button
-                        className="mt-2 w-full text-xs border rounded py-1"
-                        onClick={() => {
-                          const size = p.sizes?.[0] || "";
-                          const color = p.colors?.[0] || "";
-                          addToCart({ id: p.id, title: p.title, image: p.image, price: p.price, mrp: p.mrp, qty: 1, size, color });
-                          show({ type: "cart", title: "Added to bag", message: p.title });
-                        }}
-                      >
-                        ADD NOW
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+        <div className="grid grid-cols-2 gap-3">
+          <input
+            className={`rounded-md border px-3 py-2 bg-white dark:bg-neutral-900 ${
+              phone && !validPhone ? "border-rose-400" : ""
+            }`}
+            placeholder="Phone (10-digit)"
+            maxLength={10}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          <input
+            className={`rounded-md border px-3 py-2 bg-white dark:bg-neutral-900 ${
+              pincode && !validPin ? "border-rose-400" : ""
+            }`}
+            placeholder="Pincode"
+            maxLength={6}
+            value={pincode}
+            onChange={(e) => setPincode(e.target.value.replace(/[^\d]/g, ""))}
+          />
         </div>
 
-        {/* Summary + Options + Delivery */}
-        <aside className="space-y-4">
-          <button
-            className="w-full rounded-xl bg-emerald-700 text-white py-3 font-semibold"
-            onClick={() => { setTouched(true); if (!valid) return; setShipping(form); nav("/checkout"); }}
+        <input
+          className="w-full rounded-md border px-3 py-2 bg-white dark:bg-neutral-900"
+          placeholder="Address Line 1"
+          value={addr1}
+          onChange={(e) => setAddr1(e.target.value)}
+        />
+        <input
+          className="w-full rounded-md border px-3 py-2 bg-white dark:bg-neutral-900"
+          placeholder="Address Line 2 (optional)"
+          value={addr2}
+          onChange={(e) => setAddr2(e.target.value)}
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <input
+            className="rounded-md border px-3 py-2 bg-white dark:bg-neutral-900"
+            placeholder="City"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+          />
+          <input
+            className="rounded-md border px-3 py-2 bg-white dark:bg-neutral-900"
+            placeholder="State"
+            value={state}
+            onChange={(e) => setState(e.target.value)}
+          />
+        </div>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+          />
+          <span>Use this address next time</span>
+        </label>
+
+        <button
+          disabled={!valid || pending}
+          onClick={() =>
+            onPlace?.({
+              fullName,
+              email,
+              phone,
+              pincode,
+              address1: addr1,
+              address2: addr2,
+              city,
+              state,
+              remember,
+            })
+          }
+          className={`w-full h-12 rounded-md font-semibold transition inline-flex items-center justify-center gap-2 ${
+            !valid || pending
+              ? "bg-neutral-300 text-neutral-600 cursor-not-allowed"
+              : "bg-black text-white hover:opacity-90"
+          }`}
+        >
+          {pending ? "Processing…" : "Place Order"}
+          <svg
+            className={`h-4 w-4 ${!valid || pending ? "opacity-60" : "opacity-100"}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
           >
-            PLACE ORDER
-          </button>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
 
-          {/* Promo upsell card */}
-          <div className="p-4 border rounded-xl bg-gradient-to-r from-rose-50 to-amber-50">
-            <div className="font-semibold mb-1">YOU ARE MISSING OUT!</div>
-            <div className="text-sm opacity-80">Save an additional ₹48 by adding membership to your cart.</div>
-            <button className="mt-2 text-xs border rounded px-3 py-1">ADD</button>
-          </div>
+/* -------------------------------------------------------------
+   Cart row
+-------------------------------------------------------------- */
+function CartRow({ item, onQty, onMove, onRemove }) {
+  const price = Number(item.price || 0);
+  const mrp = Number(item.mrp || 0);
+  const cover = item.image || item.cover || "/images/placeholder.jpg";
 
-          {/* Collapsibles */}
-          <details className="p-4 border rounded-xl bg-white" open>
-            <summary className="cursor-pointer font-medium">Apply Coupon</summary>
-            <div className="mt-3 flex gap-2">
-              <input className="flex-1 rounded-lg border px-3 py-2 bg-transparent" value={coupon} onChange={(e)=>setCoupon(e.target.value)} placeholder="AURA10 / WELCOME50" />
-              <button className="rounded-lg border px-3 py-2" onClick={applyCoupon}>Apply</button>
+  const onImgError = (e) => {
+    if (e?.target?.src && !e.target.src.endsWith("/images/placeholder.jpg")) {
+      e.target.src = "/images/placeholder.jpg";
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-neutral-200/70 dark:border-neutral-800 p-4 flex gap-4">
+      <img
+        src={cover}
+        alt={item.title || item.name}
+        onError={onImgError}
+        className="w-28 h-28 object-cover rounded-lg border"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xl font-semibold">
+              {item.title || item.name}
             </div>
-            {appliedCoupon && (
-              <div className="mt-2 text-xs">
-                Applied <span className="font-semibold">{appliedCoupon.code}</span> — {appliedCoupon.kind==="percent" ? `${appliedCoupon.value}%` : `₹${appliedCoupon.value}`} off
+            <div className="mt-1 text-sm opacity-70">
+              {item.category || "Oversized T-Shirts"}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold">
+              {formatINR(price * (item.qty || 1))}
+            </div>
+            {!!mrp && mrp > price && (
+              <div className="text-sm line-through opacity-60">
+                {formatINR(mrp)}
               </div>
             )}
-          </details>
+          </div>
+        </div>
 
-          <details className="p-4 border rounded-xl bg-white">
-            <summary className="cursor-pointer font-medium">Gift Voucher</summary>
-            <div className="mt-3 text-sm opacity-70">(Optional) Accept voucher codes in checkout — not wired here.</div>
-          </details>
-
-          <details className="p-4 border rounded-xl bg-white">
-            <summary className="cursor-pointer font-medium">Gift Wrap (₹25)</summary>
-            <label className="mt-3 flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={giftWrap} onChange={(e)=>setGiftWrap(e.target.checked)} />
-              Add gift wrap to this order
-            </label>
-          </details>
-
-          <details className="p-4 border rounded-xl bg-white">
-            <summary className="cursor-pointer font-medium">Aura Points</summary>
-            <label className="mt-3 flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={usePoints} onChange={(e)=>setUsePoints(e.target.checked)} />
-              Redeem 100 points for <span className="font-medium">₹50</span> off
-            </label>
-          </details>
-
-          {/* Billing details */}
-          <div className="p-4 border rounded-xl bg-white">
-            <h2 className="font-semibold mb-3">Billing Details</h2>
-            <div className="flex justify-between mb-1 text-sm"><span>Cart Total (Excl. taxes)</span><span>₹{totals.subtotal.toFixed(2)}</span></div>
-            {appliedCoupon && <div className="flex justify-between mb-1 text-sm text-emerald-700"><span>Coupon Discount</span><span>-₹{discountFromCoupon.toFixed(2)}</span></div>}
-            {usePoints && <div className="flex justify-between mb-1 text-sm text-emerald-700"><span>Aura Points</span><span>-₹{pointsValue.toFixed(2)}</span></div>}
-            {giftWrap && <div className="flex justify-between mb-1 text-sm"><span>Gift Wrap</span><span>₹{wrapFee.toFixed(2)}</span></div>}
-            <div className="flex justify-between mb-1 text-sm"><span>GST (5%)</span><span>₹{gst.toFixed(2)}</span></div>
-            <div className="flex justify-between text-lg font-semibold mt-2"><span>Total Amount</span><span>₹{grand.toFixed(2)}</span></div>
+        <div className="mt-3 flex flex-wrap items-center gap-6">
+          <div className="text-sm">
+            Size: <span className="opacity-80">{item.size || "-"}</span>
+          </div>
+          <div className="text-sm">
+            Color:{" "}
+            <span
+              className="inline-block h-3 w-3 rounded-full border align-middle"
+              style={{ background: item.colorHex || "#e5e5e5" }}
+              title={item.color || "-"}
+            />{" "}
+            <span className="opacity-80 align-middle ml-1">
+              {item.color || "-"}
+            </span>
           </div>
 
-          {/* Delivery form */}
-          <div className="p-4 border rounded-xl bg-white">
-            <h2 className="font-semibold mb-3">Delivery Details</h2>
-            <label className="block text-sm mb-2">Full Name
-              <input className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" value={form.fullName} onChange={onChange("fullName")} placeholder="Your name" />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-sm">Phone (10-digit)
-                <input className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" value={form.phone} onChange={onChange("phone")} placeholder="9876543210" />
-              </label>
-              <label className="text-sm">Pincode
-                <input className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" value={form.pincode} onChange={onChange("pincode")} placeholder="400001" />
-              </label>
-            </div>
-            <label className="block text-sm mt-3">Address Line 1
-              <input className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" value={form.address1} onChange={onChange("address1")} placeholder="House no, street" />
-            </label>
-            <label className="block text-sm mt-3">Address Line 2 (optional)
-              <input className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" value={form.address2} onChange={onChange("address2")} placeholder="Area, landmark" />
-            </label>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <label className="text-sm">City
-                <input className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" value={form.city} onChange={onChange("city")} placeholder="Mumbai" />
-              </label>
-              <label className="text-sm">State
-                <input className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" value={form.state} onChange={onChange("state")} placeholder="Maharashtra" />
-              </label>
-            </div>
-
-            {!valid && touched && (
-              <div className="mt-3 text-xs text-rose-600">Please fill name, 10-digit phone, 6-digit pincode, address, city and state.</div>
-            )}
-
+          <div className="inline-flex items-center border rounded-md">
             <button
-              type="button"
-              className={`mt-4 w-full rounded-lg py-2 ${valid ? "bg-black text-white" : "bg-neutral-200 text-neutral-500"}`}
-              onClick={() => { setTouched(true); if (!valid) return; setShipping(form); nav("/checkout"); }}
+              className="px-3 py-1"
+              onClick={() => onQty(Math.max(1, (item.qty || 1) - 1))}
+              aria-label="decrease"
             >
-              Continue to Address
+              −
+            </button>
+            <input
+              className="w-12 text-center py-1 outline-none bg-transparent"
+              value={item.qty || 1}
+              onChange={(e) => {
+                const n = Math.max(
+                  1,
+                  Math.min(99, Number(e.target.value) || 1)
+                );
+                onQty(n);
+              }}
+            />
+            <button
+              className="px-3 py-1"
+              onClick={() => onQty(Math.min(99, (item.qty || 1) + 1))}
+              aria-label="increase"
+            >
+              +
             </button>
           </div>
-        </aside>
+
+          <button className="underline" onClick={onMove}>
+            Move to Wishlist
+          </button>
+          <button className="opacity-70 hover:opacity-100" onClick={onRemove}>
+            Remove
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------
+   Right-side promos (chevrons + Apply with arrow)
+-------------------------------------------------------------- */
+function PromoPanel({
+  giftWrap,
+  setGiftWrap,
+  giftApplied,
+  setGiftApplied,
+  subTotal,
+}) {
+  const [code, setCode] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const tryApply = () => {
+    const c = (code || "").trim().toUpperCase();
+    const value = GIFT_CARDS[c];
+    if (!value) {
+      setGiftApplied(null);
+      setMsg("Invalid gift card");
+      return;
+    }
+    const usable = Math.min(value, Math.max(0, Math.round(subTotal)));
+    setGiftApplied({ code: c, value: usable });
+    setMsg(`Applied ₹${usable} gift balance`);
+  };
+
+  const Row = ({ title, children, defaultOpen = false }) => {
+    const [open, setOpen] = useState(defaultOpen);
+    return (
+      <div className="rounded-xl border border-neutral-200/70 dark:border-neutral-800">
+        <button
+          className="w-full flex items-center justify-between px-4 py-3"
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className="font-medium">{title}</span>
+          <svg
+            className={`h-4 w-4 transition-transform ${
+              open ? "rotate-90" : ""
+            } text-neutral-500`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+        {open ? <div className="px-4 pb-4">{children}</div> : null}
+      </div>
+    );
+  };
+
+  const pointsEarned = Math.floor(Math.max(0, subTotal) / 100);
+
+  return (
+    <div className="space-y-3">
+      <Row title="Apply Coupon" defaultOpen={false}>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 rounded-md border px-3 py-2"
+            placeholder="AURA10 / WELCOME50"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <button
+            className="rounded-md border px-3 py-2 inline-flex items-center gap-2"
+            onClick={tryApply}
+          >
+            Apply
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+        <div className={`mt-2 text-sm ${giftApplied ? "text-emerald-600" : "text-rose-600"}`}>
+          {msg || (giftApplied ? `Applied: ${giftApplied.code}` : "")}
+        </div>
+        {giftApplied ? (
+          <button
+            className="mt-2 text-sm underline"
+            onClick={() => {
+              setGiftApplied(null);
+              setMsg("");
+              setCode("");
+            }}
+          >
+            Remove gift card
+          </button>
+        ) : null}
+      </Row>
+
+      <Row title="Gift Voucher">
+        <div className="text-sm opacity-80">Apply store-issued vouchers here (coming soon).</div>
+      </Row>
+
+      <Row title={`Gift Wrap (${formatINR(25)})`}>
+        <label className="flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={giftWrap}
+            onChange={(e) => setGiftWrap(e.target.checked)}
+          />
+          <span>Add premium gift wrap to this order</span>
+        </label>
+      </Row>
+
+      <Row title="Aura Points">
+        <div className="text-sm opacity-80">
+          You will earn <span className="font-semibold">{pointsEarned}</span> Aura Points on this order. (1 point for every ₹100 spent.)
+        </div>
+      </Row>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------
+   MAIN CART PAGE
+-------------------------------------------------------------- */
+export default function Cart() {
+  const navigate = useNavigate();
+  const toast = useSafeToast();
+
+  const {
+    cart = [],
+    products: ctxProducts = [],
+    updateCartQty,
+    removeFromCart,
+    moveToWishlist,
+  } = useStore();
+
+  const [giftWrap, setGiftWrap] = useState(false);
+  const [giftApplied, setGiftApplied] = useState(null); // { code, value } | null
+
+  const subTotal = useMemo(() => subtotalOf(cart), [cart]);
+  const wrapFee = giftWrap ? 49 : 0; // keep 49 in totals
+  const giftCredit = giftApplied?.value || 0;
+  const total = Math.max(0, subTotal + wrapFee - giftCredit);
+
+  const handlePlaceOrder = (address) => {
+    const prev = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("checkout_address") || "{}");
+      } catch {
+        return {};
+      }
+    })();
+    localStorage.setItem("checkout_address", JSON.stringify({ ...prev, ...address }));
+    navigate("/payment");
+  };
+
+  // Recos with fallback to ALL_PRODUCTS
+  const productsSource = (ctxProducts && ctxProducts.length ? ctxProducts : ALL_PRODUCTS) || [];
+  const taken = new Set(cart.map((c) => String(c.id)));
+  const recos = productsSource.filter((p) => !taken.has(String(p.id))).slice(0, 3);
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <CheckoutSteps current="bag" />
+
+      <div className="grid lg:grid-cols-[1fr,380px] gap-8 items-start">
+        {/* LEFT */}
+        <div className="space-y-4">
+          <h1 className="text-2xl font-bold mb-1">My Bag</h1>
+
+          {cart.length === 0 ? (
+            <div className="rounded-xl border p-6 text-center">
+              Your bag is empty.{" "}
+              <Link className="underline" to="/men">
+                Shop now
+              </Link>
+            </div>
+          ) : (
+            cart.map((it) => (
+              <CartRow
+                key={`${it.id}-${it.size || ""}-${it.color || ""}`}
+                item={it}
+                onQty={(n) => updateCartQty?.(it.id, n, it.size, it.color)}
+                onMove={() => {
+                  moveToWishlist?.(it);
+                  removeFromCart?.(it.id, it.size, it.color);
+                  toast({ title: "Added to wishlist", subtitle: it.title, type: "wish", timeout: 1600 });
+                }}
+                onRemove={() => {
+                  removeFromCart?.(it.id, it.size, it.color);
+                  toast("Removed from bag", { type: "success" });
+                }}
+              />
+            ))
+          )}
+
+          {/* You may also like */}
+          {recos.length > 0 && (
+            <div className="mt-6">
+              <div className="font-semibold mb-3">You may also like</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {recos.map((p) => {
+                  const cover = p.image || p.images?.[0] || p.cover || "/images/placeholder.jpg";
+                  return (
+                    <div key={p.id} className="rounded-xl overflow-hidden border hover:shadow-sm transition">
+                      <Link to={`/product/${encodeURIComponent(p.id)}`}>
+                        <img
+                          src={cover}
+                          alt={p.title || p.name}
+                          className="aspect-[3/4] w-full object-cover"
+                          onError={(e) => {
+                            if (e?.target?.src && !e.target.src.endsWith("/images/placeholder.jpg")) {
+                              e.target.src = "/images/placeholder.jpg";
+                            }
+                          }}
+                        />
+                      </Link>
+                      <div className="p-3">
+                        <div className="font-medium line-clamp-1">{p.title || p.name}</div>
+                        <div className="text-sm mt-1">{formatINR(p.price)}</div>
+                        <Link to={`/product/${encodeURIComponent(p.id)}`} className="mt-2 inline-flex items-center gap-2 text-sm underline">
+                          ADD NOW
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: promos + bill + address */}
+        <div className="space-y-6">
+          <PromoPanel
+            giftWrap={giftWrap}
+            setGiftWrap={setGiftWrap}
+            giftApplied={giftApplied}
+            setGiftApplied={setGiftApplied}
+            subTotal={subTotal}
+          />
+
+          <div className="rounded-2xl border border-neutral-200/70 dark:border-neutral-800 p-4">
+            <div className="font-semibold mb-2">Billing Details</div>
+            <div className="flex items-center justify-between text-sm py-1">
+              <span>Cart Total</span>
+              <span>{formatINR(subTotal)}</span>
+            </div>
+            {giftWrap ? (
+              <div className="flex items-center justify-between text-sm py-1">
+                <span>Gift Wrap</span>
+                <span>{formatINR(wrapFee)}</span>
+              </div>
+            ) : null}
+            {giftApplied ? (
+              <div className="flex items-center justify-between text-sm py-1 text-emerald-700">
+                <span>Gift Card ({giftApplied.code})</span>
+                <span>-{formatINR(giftCredit)}</span>
+              </div>
+            ) : null}
+            <div className="border-t my-2" />
+            <div className="flex items-center justify-between font-semibold">
+              <span>Total Amount</span>
+              <span>{formatINR(total)}</span>
+            </div>
+          </div>
+
+          <div id="delivery-form">
+            <DeliveryForm onPlace={handlePlaceOrder} />
+          </div>
+        </div>
       </div>
     </div>
   );

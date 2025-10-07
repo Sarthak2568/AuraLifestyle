@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { useStore } from "../context/StoreContext";
 import { Link, useNavigate } from "react-router-dom";
 import CheckoutSteps from "../components/CheckoutSteps";
+import { loadRazorpayCheckout } from "@/utils/razorpay"; // NEW
 
 const formatINR = (n) =>
   new Intl.NumberFormat("en-IN", {
@@ -208,9 +209,10 @@ export default function Payment() {
   const total = sub + gst;
 
   const [paid, setPaid] = useState(false);
-  const [orderId] = useState(() => "AURA" + Math.random().toString(36).slice(2, 8).toUpperCase());
+  const [orderId, setOrderId] = useState(() => "AURA" + Math.random().toString(36).slice(2, 8).toUpperCase()); // CHANGED: now we can update to Razorpay order id
   const [snapshot, setSnapshot] = useState({ items: [], sub: 0, gst: 0, total: 0 });
   const [tab, setTab] = useState("summary");
+  const [loading, setLoading] = useState(false); // NEW
   const stepLabels = ["Placed", "Confirmed", "Packed", "Shipped", "Delivered"];
 
   // Build invoice for current view (paid snapshot if available)
@@ -262,30 +264,112 @@ export default function Payment() {
     } catch {}
   };
 
-  const payNow = () => {
-    const items = [...cart];
-    const subSnap = sub;
-    const gstSnap = gst;
-    const totalSnap = total;
+  // === RAZORPAY INTEGRATION (replaces old "simulate payment") =================
+  const payNow = async () => {
+    if (!cart.length) return alert("Your cart is empty");
 
-    localStorage.setItem(
-      "last_invoice",
-      JSON.stringify({
-        orderId,
-        address,
-        cart: items,
-        sub: subSnap,
-        gst: gstSnap,
-        total: totalSnap,
-        createdAt: new Date().toISOString(),
-      })
-    );
-    clearCart?.();
-    setSnapshot({ items, sub: subSnap, gst: gstSnap, total: totalSnap });
-    setPaid(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setLoading(true);
+
+    // 1) ensure checkout.js is loaded
+    const ok = await loadRazorpayCheckout();
+    if (!ok) {
+      setLoading(false);
+      alert("Unable to load Razorpay checkout.");
+      return;
+    }
+
+    try {
+      // 2) create an order on your backend (amount in rupees)
+      const res = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: total,
+          currency: "INR",
+          notes: {
+            local_order_hint: orderId,
+            items: cart.map((c) => `${c.title} x${c.qty}`).join(", "),
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!data?.success) throw new Error(data?.message || "Order creation failed");
+      const { order } = data;
+
+      // Optional: use Razorpay's order id as display id
+      setOrderId(order.id);
+
+      // 3) open Razorpay Checkout
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount, // paise
+        currency: order.currency,
+        name: "AuraLifestyle",
+        description: `Order ${order.id}`,
+        order_id: order.id,
+        image: "/images/black_logo_without_bg.png",
+        prefill: {
+          name: address?.fullName || "",
+          email: address?.email || "",
+          contact: address?.phone || "",
+        },
+        notes: order.notes,
+        theme: { color: "#111827" },
+        handler: async (resp) => {
+          // 4) verify signature on backend
+          const v = await fetch("/api/verify-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(resp),
+          });
+          const ver = await v.json();
+
+          if (ver?.success) {
+            // success → snapshot & thank-you view
+            const items = [...cart];
+            const subSnap = sub;
+            const gstSnap = gst;
+            const totalSnap = total;
+
+            localStorage.setItem(
+              "last_invoice",
+              JSON.stringify({
+                orderId: order.id,
+                address,
+                cart: items,
+                sub: subSnap,
+                gst: gstSnap,
+                total: totalSnap,
+                createdAt: new Date().toISOString(),
+                payment_id: resp.razorpay_payment_id,
+              })
+            );
+
+            setSnapshot({ items, sub: subSnap, gst: gstSnap, total: totalSnap });
+            setPaid(true);
+            clearCart?.();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          } else {
+            alert("Payment verification failed. If money was deducted, it will be auto-reversed.");
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            // user closed the checkout
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      console.error(err);
+      alert(err?.message || "Payment error");
+    } finally {
+      setLoading(false);
+    }
   };
-
+  // ============================================================================
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <CheckoutSteps current="payment" />
@@ -455,6 +539,16 @@ export default function Payment() {
                   <span>Total</span>
                   <span>{formatINR(totalView)}</span>
                 </div>
+                {paid ? (
+                  <>
+                    <button className="mt-3 h-10 px-4 rounded-md border w-full" onClick={printInvoice}>
+                      Print
+                    </button>
+                    <button className="mt-2 h-10 px-4 rounded-md border w-full" onClick={downloadInvoice}>
+                      Download Invoice
+                    </button>
+                  </>
+                ) : null}
               </div>
             ) : (
               <div className="rounded-2xl border p-4 bg-white dark:bg-neutral-900">
@@ -493,10 +587,13 @@ export default function Payment() {
                 <label className="flex items-center gap-2"><input type="radio" name="pm" defaultChecked /> UPI</label>
                 <label className="flex items-center gap-2"><input type="radio" name="pm" /> Card</label>
                 <label className="flex items-center gap-2"><input type="radio" name="pm" /> Netbanking</label>
-                <label className="flex items-center gap-2"><input type="radio" name="pm" /> Cash on Delivery</label>
               </div>
-              <button onClick={payNow} className="mt-4 h-11 w-full rounded-full bg-blue-600 text-white font-semibold inline-flex items-center justify-center gap-2">
-                Pay Now — {formatINR(totalView)}
+              <button
+                onClick={payNow}
+                disabled={loading || !cart.length}
+                className="mt-4 h-11 w-full rounded-full bg-blue-600 text-white font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {loading ? "Processing…" : `Pay Now — ${formatINR(totalView)}`}
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>

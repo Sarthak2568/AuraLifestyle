@@ -1,19 +1,14 @@
-// src/pages/ProductPage.jsx
 import React, { useMemo, useRef, useEffect, useState } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
 import { useToast } from "../context/ToastContext";
 import KebabMenu from "../components/KebabMenu";
 import ALL_PRODUCTS from "../data/products";
+import IKImg from "@/components/IKImg";
 
 /* ---------- helpers ---------- */
 const slugify = (s = "") =>
-  s
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)+/g, "");
+  s.toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
 
 const getParamKey = (params, location) => {
   const first = Object.keys(params)[0];
@@ -36,9 +31,7 @@ function SizeRecommender({ onPick, product }) {
     const sizes = product?.sizes || [];
     if (!h || !w || !sizes.length) return null;
 
-    const order = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"].filter((s) =>
-      sizes.includes(s)
-    );
+    const order = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"].filter((s) => sizes.includes(s));
     const mid = Math.floor((order.length - 1) / 2);
     let idx = mid;
 
@@ -199,14 +192,12 @@ export default function ProductPage() {
       color,
     });
 
-    // Cart toast (unchanged)
     show("Added to bag", {
       type: "cart",
       subtitle: `${title}${size ? ` • ${size}` : ""}${color ? ` • ${color}` : ""}`,
       timeout: 1600,
     });
 
-    // 🆕 Wishlist-style popup on Add to Cart (toast only; does NOT toggle wishlist data)
     show({ title: "Added to wishlist", subtitle: title, type: "wish", timeout: 1400 });
   };
 
@@ -218,24 +209,24 @@ export default function ProductPage() {
 
   return (
     <div ref={topRef} className="max-w-6xl mx-auto px-4 py-10">
-      {/* top row: page actions */}
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm opacity-70">{subtitle}</div>
         <KebabMenu />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-10">
-        {/* left: image */}
         <div>
-          <img
+          <IKImg
             src={cover}
             alt={title}
-            onError={onImgError}
             className="w-full rounded-xl object-cover border border-neutral-200 dark:border-neutral-800"
+            width={1200}
+            height={1500}
+            sizes="(min-width:1024px) 50vw, 100vw"
+            onError={onImgError}
           />
         </div>
 
-        {/* right: content */}
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">{title}</h1>
 
@@ -246,7 +237,6 @@ export default function ProductPage() {
             )}
           </div>
 
-          {/* Color */}
           {colorList.length > 0 && (
             <div className="mt-4">
               <div className="text-sm font-medium">
@@ -258,9 +248,7 @@ export default function ProductPage() {
                     key={c}
                     type="button"
                     onClick={() => setColor(c)}
-                    className={`h-7 w-7 rounded-full border ${
-                      color === c ? "ring-2 ring-offset-2 ring-black" : ""
-                    }`}
+                    className={`h-7 w-7 rounded-full border ${color === c ? "ring-2 ring-offset-2 ring-black" : ""}`}
                     title={c}
                     aria-label={c}
                     style={{ background: swatches[c] || "#e5e5e5" }}
@@ -270,7 +258,6 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* Size */}
           <div className="mt-4">
             <div className="text-sm font-medium">Size</div>
             <div className="flex flex-wrap gap-2 mt-2">
@@ -289,49 +276,26 @@ export default function ProductPage() {
             </div>
           </div>
 
-          {/* Quantity */}
           <div className="mt-4">
             <div className="text-sm font-medium">Quantity</div>
             <div className="inline-flex items-center border rounded mt-2">
-              <button
-                type="button"
-                className="px-3 py-1"
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-              >
-                −
-              </button>
+              <button type="button" className="px-3 py-1" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
               <input
                 className="w-16 text-center py-1 bg-transparent outline-none"
                 value={qty}
-                onChange={(e) =>
-                  setQty(Math.max(1, Math.min(99, Number(e.target.value) || 1)))
-                }
+                onChange={(e) => setQty(Math.max(1, Math.min(99, Number(e.target.value) || 1)))}
               />
-              <button
-                type="button"
-                className="px-3 py-1"
-                onClick={() => setQty((q) => Math.min(99, q + 1))}
-              >
-                +
-              </button>
+              <button type="button" className="px-3 py-1" onClick={() => setQty((q) => Math.min(99, q + 1))}>+</button>
             </div>
           </div>
 
-          {/* Actions */}
           <div className="mt-4 flex gap-3">
-            <button
-              type="button"
-              onClick={addItem}
-              className="px-5 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-            >
+            <button type="button" onClick={addItem} className="px-5 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900">
               Add to Cart
             </button>
             <button
               type="button"
-              onClick={() => {
-                addItem();
-                show("Item added — proceed to checkout", { type: "cart", timeout: 1400 });
-              }}
+              onClick={() => { addItem(); show("Item added — proceed to checkout", { type: "cart", timeout: 1400 }); }}
               className="px-5 py-2 rounded border"
             >
               Buy Now
@@ -339,29 +303,20 @@ export default function ProductPage() {
             <button
               type="button"
               onClick={() => {
-                const wasWished =
-                  Array.isArray(wishlist) && wishlist.some((w) => String(w.id) === String(product.id));
+                const wasWished = Array.isArray(wishlist) && wishlist.some((w) => String(w.id) === String(product.id));
                 toggleWishlist?.({ id: product.id, title, price: product.price, image: cover });
-                show(wasWished ? "Removed from wishlist" : "Added to wishlist", {
-                  type: "wish",
-                  subtitle: title,
-                  timeout: 1600,
-                });
+                show(wasWished ? "Removed from wishlist" : "Added to wishlist", { type: "wish", subtitle: title, timeout: 1600 });
               }}
-              className={`px-5 py-2 rounded border ${
-                wished ? "bg-rose-600 text-white border-rose-600" : ""
-              }`}
+              className={`px-5 py-2 rounded border ${wished ? "bg-rose-600 text-white border-rose-600" : ""}`}
             >
               {wished ? "Wishlisted" : "Wishlist"}
             </button>
           </div>
 
-          {/* Size recommender */}
           <div className="mt-6">
             <SizeRecommender product={product} onPick={(s) => setSize(s)} />
           </div>
 
-          {/* Bullets */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6 text-sm">
             <ul className="space-y-1 list-disc list-inside">
               {(product.highlightsLeft || ["Cotton-rich terry", "Secure zip pocket"]).map((b) => (
@@ -375,7 +330,6 @@ export default function ProductPage() {
             </ul>
           </div>
 
-          {/* Accordions */}
           <div className="mt-6 space-y-3">
             <details className="rounded border p-4" open>
               <summary className="cursor-pointer font-medium">Description</summary>

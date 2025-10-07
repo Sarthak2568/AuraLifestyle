@@ -2,13 +2,11 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
 import { useToast } from "../context/ToastContext";
+import IKImg from "@/components/IKImg";
 
 const formatINR = (n) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(Math.max(0, Math.round(Number(n || 0))));
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })
+    .format(Math.max(0, Math.round(Number(n || 0))));
 
 export default function ProductCard({ product }) {
   const { addToCart, toggleWishlist, wishlist = [] } = useStore();
@@ -38,12 +36,10 @@ export default function ProductCard({ product }) {
       mrp,
       image: cover,
       qty: 1,
-      size: "",  // unknown at listing level
-      color: "", // unknown at listing level
+      size: "",
+      color: "",
     });
     show?.("Added to bag", { type: "cart", subtitle: title, timeout: 1600 });
-
-    // also show the wishlist-style popup IF this item is already wishlisted (UX hint)
     if (wished) {
       show?.({ title: "In your wishlist", subtitle: title, type: "wish", timeout: 1400 });
     }
@@ -68,12 +64,14 @@ export default function ProductCard({ product }) {
   return (
     <div className="group rounded-xl overflow-hidden border hover:shadow-sm transition bg-white dark:bg-neutral-900">
       <Link to={`/product/${encodeURIComponent(product.id ?? product.slug ?? id)}`} className="block">
-        <img
+        <IKImg
           src={cover}
           alt={title}
           className="aspect-[3/4] w-full object-cover"
+          width={640}
+          height={800}
+          sizes="(max-width:768px) 50vw, 25vw"
           onError={onImgError}
-          loading="lazy"
         />
       </Link>
 
@@ -87,7 +85,6 @@ export default function ProductCard({ product }) {
             </div>
           </div>
 
-          {/* Wishlist button */}
           <button
             aria-label="Wishlist"
             onClick={onToggleWish}
@@ -95,14 +92,12 @@ export default function ProductCard({ product }) {
               ${wished ? "bg-rose-600 border-rose-600 text-white" : "hover:bg-neutral-50"}`}
             title={wished ? "Wishlisted" : "Wishlist"}
           >
-            {/* heart icon */}
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
               <path d="M12 21s-6.716-4.35-9.428-7.06A6 6 0 1 1 12 6.586 6 6 0 1 1 21.428 13.94C18.716 16.65 12 21 12 21z" />
             </svg>
           </button>
         </div>
 
-        {/* Actions */}
         <div className="mt-2 flex items-center justify-between">
           <Link
             to={`/product/${encodeURIComponent(product.id ?? product.slug ?? id)}`}

@@ -8,7 +8,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 const SLIDES = [
   { id: "hero-01", kind: "video", src: "/videos/hero-1.mp4", poster: "/images/hero-1.jpg", focal: "50% 32%" },
   { id: "hero-02", kind: "video", src: "/videos/fvideo.mp4", focal: "50% 26%" },
-  { id: "hero-03", kind: "image", src: "/images/hero-03.jpg", focal: "50% 28%" },
 ];
 
 const DEFAULT_DELAY = 4500;

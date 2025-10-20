@@ -14,13 +14,13 @@ export default function SplitGenderHero() {
 
   // Swap these file names if your files differ (use exact public /images names)
   const womenSlides = [
-    "/images/home_women.jpg", // or your "home_women" file
+    "/images/home_women.png", // or your "home_women" file
     "/images/W-07 f.png",
     "/images/W-06 f.png",
   ];
 
   const menSlides = [
-    "/images/home_men.jpg", // or your "home_men" file
+    "/images/home_men.png", // or your "home_men" file
     "/images/M-10.png",
     "/images/M-09.png",
   ];

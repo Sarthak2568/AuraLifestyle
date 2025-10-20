@@ -1,9 +1,12 @@
 // src/pages/Payment.jsx
 import React, { useMemo, useState } from "react";
-import { useStore } from "../context/StoreContext";
 import { Link, useNavigate } from "react-router-dom";
 import CheckoutSteps from "../components/CheckoutSteps";
-import { loadRazorpayCheckout } from "@/utils/razorpay"; // NEW
+import { useStore } from "../context/StoreContext";
+import { apiFetch } from "../lib/api";
+import { ensureCustomer } from "../lib/customer";
+
+const RZP_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_RNvwok6aTxwdKW";
 
 const formatINR = (n) =>
   new Intl.NumberFormat("en-IN", {
@@ -209,10 +212,9 @@ export default function Payment() {
   const total = sub + gst;
 
   const [paid, setPaid] = useState(false);
-  const [orderId, setOrderId] = useState(() => "AURA" + Math.random().toString(36).slice(2, 8).toUpperCase()); // CHANGED: now we can update to Razorpay order id
+  const [orderId] = useState(() => "AURA" + Math.random().toString(36).slice(2, 8).toUpperCase());
   const [snapshot, setSnapshot] = useState({ items: [], sub: 0, gst: 0, total: 0 });
   const [tab, setTab] = useState("summary");
-  const [loading, setLoading] = useState(false); // NEW
   const stepLabels = ["Placed", "Confirmed", "Packed", "Shipped", "Delivered"];
 
   // Build invoice for current view (paid snapshot if available)
@@ -264,112 +266,119 @@ export default function Payment() {
     } catch {}
   };
 
-  // === RAZORPAY INTEGRATION (replaces old "simulate payment") =================
   const payNow = async () => {
-    if (!cart.length) return alert("Your cart is empty");
-
-    setLoading(true);
-
-    // 1) ensure checkout.js is loaded
-    const ok = await loadRazorpayCheckout();
-    if (!ok) {
-      setLoading(false);
-      alert("Unable to load Razorpay checkout.");
+    if (!cart.length) {
+      alert("Your cart is empty.");
       return;
     }
 
-    try {
-      // 2) create an order on your backend (amount in rupees)
-      const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: total,
-          currency: "INR",
-          notes: {
-            local_order_hint: orderId,
-            items: cart.map((c) => `${c.title} x${c.qty}`).join(", "),
-          },
-        }),
-      });
-      const data = await res.json();
-      if (!data?.success) throw new Error(data?.message || "Order creation failed");
-      const { order } = data;
+    // 0) Ensure / create customer and get customerId
+    const customerId = await ensureCustomer(address);
 
-      // Optional: use Razorpay's order id as display id
-      setOrderId(order.id);
+    // 1) Inventory check
+    const inv = await apiFetch("/api/inventory/check", {
+      method: "POST",
+      body: JSON.stringify({
+        items: cart.map((it) => ({ sku: it.id || it.sku, qty: it.qty || 1 })),
+      }),
+    });
+    if (!inv.ok || inv.data?.insufficient?.length) {
+      const list =
+        inv.data?.insufficient?.map((i) => `${i.sku} (need ${i.requested}, have ${i.available})`) || [];
+      alert("Some items are unavailable:\n" + list.join("\n"));
+      return;
+    }
 
-      // 3) open Razorpay Checkout
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount, // paise
-        currency: order.currency,
-        name: "AuraLifestyle",
-        description: `Order ${order.id}`,
-        order_id: order.id,
-        image: "/images/black_logo_without_bg.png",
-        prefill: {
-          name: address?.fullName || "",
-          email: address?.email || "",
-          contact: address?.phone || "",
-        },
-        notes: order.notes,
-        theme: { color: "#111827" },
-        handler: async (resp) => {
-          // 4) verify signature on backend
-          const v = await fetch("/api/verify-payment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(resp),
-          });
-          const ver = await v.json();
+    // 2) Create Razorpay order (amount in rupees)
+    const created = await apiFetch("/api/create-order", {
+      method: "POST",
+      body: JSON.stringify({ amount: total, currency: "INR", receipt: orderId }),
+    });
+    if (!created.ok || !created.data?.order) {
+      alert("Could not create order. Please try again.");
+      return;
+    }
+    const order = created.data.order;
 
-          if (ver?.success) {
-            // success → snapshot & thank-you view
-            const items = [...cart];
-            const subSnap = sub;
-            const gstSnap = gst;
-            const totalSnap = total;
+    // 3) Open Razorpay checkout
+    const opts = {
+      key: RZP_KEY,
+      amount: order.amount,
+      currency: order.currency,
+      name: "AuraLifestyle",
+      description: `Order ${orderId}`,
+      order_id: order.id,
+      prefill: {
+        name: address?.fullName || "",
+        email: address?.email || "",
+        contact: address?.phone || "",
+      },
+      notes: { display_order_id: orderId },
+      theme: { color: "#111111" },
+      handler: async (resp) => {
+        // 4) Verify + decrement stock + upsert customer + save order + email
+        const verify = await apiFetch("/api/verify-payment", {
+          method: "POST",
+          body: JSON.stringify({
+            razorpay_order_id: resp.razorpay_order_id,
+            razorpay_payment_id: resp.razorpay_payment_id,
+            razorpay_signature: resp.razorpay_signature,
+            meta: {
+              customerId,
+              display_order_id: orderId,
+              address,
+              items: cart.map((it) => ({
+                id: it.id || it.sku,
+                title: it.title || it.name,
+                price: Number(it.price) || 0,
+                qty: Number(it.qty) || 1,
+                size: it.size || "",
+                color: it.color || "",
+                image: it.image || "",
+              })),
+              sub,
+              gst,
+              total,
+              rzpAmount: order.amount,
+              rzpCurrency: order.currency,
+            },
+          }),
+        });
 
-            localStorage.setItem(
-              "last_invoice",
-              JSON.stringify({
-                orderId: order.id,
-                address,
-                cart: items,
-                sub: subSnap,
-                gst: gstSnap,
-                total: totalSnap,
-                createdAt: new Date().toISOString(),
-                payment_id: resp.razorpay_payment_id,
-              })
-            );
+        if (!verify.ok || !verify.data?.success) {
+          alert("Payment captured but verification failed. We’ll email you if needed.");
+          return;
+        }
 
-            setSnapshot({ items, sub: subSnap, gst: gstSnap, total: totalSnap });
-            setPaid(true);
-            clearCart?.();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          } else {
-            alert("Payment verification failed. If money was deducted, it will be auto-reversed.");
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            // user closed the checkout
-          },
-        },
-      };
+        // Success UI snapshot + clear cart
+        localStorage.setItem(
+          "last_invoice",
+          JSON.stringify({
+            orderId,
+            address,
+            cart: [...cart],
+            sub,
+            gst,
+            total,
+            createdAt: new Date().toISOString(),
+          })
+        );
+        clearCart?.();
+        setSnapshot({ items: [...cart], sub, gst, total });
+        setPaid(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      },
+      modal: { ondismiss: () => {} },
+    };
 
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (err) {
-      console.error(err);
-      alert(err?.message || "Payment error");
-    } finally {
-      setLoading(false);
+    if (window.Razorpay) {
+      const rz = new window.Razorpay(opts);
+      rz.open();
+    } else {
+      alert("Razorpay SDK not loaded.");
     }
   };
-  // ============================================================================
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <CheckoutSteps current="payment" />
@@ -539,16 +548,6 @@ export default function Payment() {
                   <span>Total</span>
                   <span>{formatINR(totalView)}</span>
                 </div>
-                {paid ? (
-                  <>
-                    <button className="mt-3 h-10 px-4 rounded-md border w-full" onClick={printInvoice}>
-                      Print
-                    </button>
-                    <button className="mt-2 h-10 px-4 rounded-md border w-full" onClick={downloadInvoice}>
-                      Download Invoice
-                    </button>
-                  </>
-                ) : null}
               </div>
             ) : (
               <div className="rounded-2xl border p-4 bg-white dark:bg-neutral-900">
@@ -587,13 +586,10 @@ export default function Payment() {
                 <label className="flex items-center gap-2"><input type="radio" name="pm" defaultChecked /> UPI</label>
                 <label className="flex items-center gap-2"><input type="radio" name="pm" /> Card</label>
                 <label className="flex items-center gap-2"><input type="radio" name="pm" /> Netbanking</label>
+                <label className="flex items-center gap-2"><input type="radio" name="pm" /> Cash on Delivery</label>
               </div>
-              <button
-                onClick={payNow}
-                disabled={loading || !cart.length}
-                className="mt-4 h-11 w-full rounded-full bg-blue-600 text-white font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                {loading ? "Processing…" : `Pay Now — ${formatINR(totalView)}`}
+              <button onClick={payNow} className="mt-4 h-11 w-full rounded-full bg-blue-600 text-white font-semibold inline-flex items-center justify-center gap-2">
+                Pay Now — {formatINR(totalView)}
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>

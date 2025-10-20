@@ -47,21 +47,22 @@ export default function Navbar() {
               aria-label="menu"
               onClick={() => setOpenDrawer(true)}
               className="p-2 rounded hover:bg-white/10"
+              style={{ marginBottom: '10px' }}
             >
               <Bars3 />
             </button>
 
             {/* Brand */}
             <Link to="/" className="font-extrabold tracking-wider text-lg">
-              AURALIFESTYLE
+              <img src = "/images/logo_image.png" alt = "logo"  height = "50px" width = "160px" style={{ marginTop: '20px' }}/>
             </Link>
 
             {/* Primary links */}
-            <Link to="/women" className="opacity-90 hover:opacity-100">
-              WOMEN
-            </Link>
             <Link to="/men" className="opacity-90 hover:opacity-100">
               MEN
+            </Link>
+            <Link to="/women" className="opacity-90 hover:opacity-100">
+              WOMEN
             </Link>
           </div>
 

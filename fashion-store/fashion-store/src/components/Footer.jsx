@@ -19,13 +19,13 @@ export default function Footer() {
             </p>
             <div className="mt-4 flex items-center gap-3 text-neutral-500">
               <a
-                href="https://instagram.com/aura.lifestyle.official"
+                href="https://instagram.com/theauralifestyle"
                 target="_blank"
                 rel="noreferrer"
                 className="hover:text-emerald-600 dark:hover:text-emerald-400"
                 aria-label="Instagram"
               >
-                Instagram
+                IG
               </a>
               <a
                 href="https://wa.me/919650306378"
@@ -34,7 +34,7 @@ export default function Footer() {
                 className="hover:text-emerald-600 dark:hover:text-emerald-400"
                 aria-label="WhatsApp"
               >
-                Whatsapp
+                WA
               </a>
             </div>
           </div>
@@ -45,6 +45,8 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link to="/men" className="hover:text-emerald-600 dark:hover:text-emerald-400">Men</Link></li>
               <li><Link to="/women" className="hover:text-emerald-600 dark:hover:text-emerald-400">Women</Link></li>
+              <li><Link to="/sneakers" className="hover:text-emerald-600 dark:hover:text-emerald-400">Sneakers</Link></li>
+              <li><Link to="/accessories" className="hover:text-emerald-600 dark:hover:text-emerald-400">Accessories</Link></li>
               <li><Link to="/collections/new" className="hover:text-emerald-600 dark:hover:text-emerald-400">New Arrivals</Link></li>
             </ul>
           </div>
@@ -56,6 +58,7 @@ export default function Footer() {
               <li><Link to="/collections/oversized" className="hover:text-emerald-600 dark:hover:text-emerald-400">Oversized Tees</Link></li>
               <li><Link to="/collections/bestsellers" className="hover:text-emerald-600 dark:hover:text-emerald-400">Bestsellers</Link></li>
               <li><Link to="/collections/merch" className="hover:text-emerald-600 dark:hover:text-emerald-400">Official Merch</Link></li>
+              <li><Link to="/collections/bottoms" className="hover:text-emerald-600 dark:hover:text-emerald-400">Bottomwear</Link></li>
             </ul>
           </div>
 
@@ -107,8 +110,8 @@ export default function Footer() {
         <div className="mt-10 flex flex-col-reverse sm:flex-row items-center justify-between gap-4 text-xs text-neutral-600 dark:text-neutral-400">
           <p>© {new Date().getFullYear()} AuraLifestyle. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            <Link to="/terms" className="hover:text-emerald-600 dark:hover:text-emerald-400">Terms</Link>
-            <Link to="/privacy" className="hover:text-emerald-600 dark:hover:text-emerald-400">Privacy</Link>
+            <Link to="/legal/terms" className="hover:text-emerald-600 dark:hover:text-emerald-400">Terms</Link>
+            <Link to="/legal/privacy" className="hover:text-emerald-600 dark:hover:text-emerald-400">Privacy</Link>
             <Link to="/help/shipping" className="hover:text-emerald-600 dark:hover:text-emerald-400">Shipping</Link>
           </div>
         </div>

@@ -1,125 +1,146 @@
 // src/routes/auth.js
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import OtpToken from '../models/OtpToken.js';
+import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
-import nodemailer from 'nodemailer';
+import OtpToken from '../models/OtpToken.js';
+import { transporter as mailTransport, FROM_EMAIL, FROM_NAME } from '../config/mail.js';
 
 const router = express.Router();
 
-/** build transporter once */
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: Number(process.env.EMAIL_PORT || 465),
-  secure: process.env.EMAIL_SECURE?.toString() !== 'false',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// --- helpers ---
+function sign(user) {
+  const payload = { uid: user._id, userId: user.userId, role: user.role || 'user' };
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+}
 
-/** helper: 4-digit OTP as a string */
-const genOtp = () => String(Math.floor(1000 + Math.random() * 9000));
+function genOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+}
 
-/**
- * POST /api/auth/request-otp
- * body: { email, name? }
- */
-router.post('/request-otp', async (req, res) => {
+// --- PASSWORD FLOWS (compat) ---
+router.post('/register', async (req, res) => {
   try {
-    const { email, name } = req.body || {};
-    if (!email) return res.status(400).json({ error: 'Email is required' });
-
-    // generate OTP
-    const otp = genOtp();
-
-    // upsert user (optional; we set name on first time)
-    const user = await User.findOneAndUpdate(
-      { email },
-      { $setOnInsert: { email, name: name || 'Customer' } },
-      { new: true, upsert: true }
-    );
-
-    // make sure we don't keep multiple OTPs for same email
-    await OtpToken.deleteMany({ email });
-
-    // store OTP with TTL
-    await OtpToken.create({
-      email,
-      otp, // <-- IMPORTANT: we are saving "otp" field expected by schema
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-    });
-
-    // email it
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to: email,
-      subject: 'Your AuraLifestyle verification code',
-      text: `Your verification code is ${otp}. It will expire in 10 minutes.`,
-      html: `<p>Your verification code is <b>${otp}</b>. It will expire in 10 minutes.</p>`,
-    });
-
-    return res.json({ message: 'OTP sent' });
-  } catch (err) {
-    console.error('request-otp error:', err);
-    return res.status(500).json({
-      error: 'Failed to send OTP',
-      detail: err?.message,
-    });
+    const { name, email, password, phone } = req.body || {};
+    if (!name || !email || !password) return res.status(400).json({ success: false, message: 'Missing fields' });
+    const exists = await User.findOne({ email });
+    if (exists) return res.status(400).json({ success: false, message: 'Email already registered' });
+    const user = await User.create({ name, email, password, phone });
+    const token = sign(user);
+    res.json({ success: true, token, user });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Register failed', error: e?.message || 'unknown_error' });
   }
 });
 
-/**
- * POST /api/auth/verify-otp
- * body: { email, code }
- */
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) return res.status(400).json({ success: false, message: 'Invalid credentials' });
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) return res.status(400).json({ success: false, message: 'Invalid credentials' });
+    user.password = undefined;
+    const token = sign(user);
+    res.json({ success: true, token, user });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Login failed', error: e?.message || 'unknown_error' });
+  }
+});
+
+router.get('/me', async (req, res) => {
+  try {
+    const h = req.headers.authorization || '';
+    const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+    if (!token) return res.status(401).json({ success: false, message: 'Missing token' });
+
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(payload.uid).select('-password');
+    if (!user) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, user });
+  } catch {
+    res.status(401).json({ success: false, message: 'Invalid/expired token' });
+  }
+});
+
+// --- OTP FLOWS ---
+router.post('/request-otp', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ success: false, message: 'Email required' });
+
+    const OTP_TTL_MIN = Number(process.env.OTP_TTL_MIN || 10);
+    const otp = genOtp();
+    const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000);
+
+    // Save OTP
+    await OtpToken.create({ email, otp, expiresAt });
+
+    // Log to server console (dev aid)
+    console.log(`[OTP] ${email} → ${otp} (valid ${OTP_TTL_MIN}m)`);
+
+    // Email it (best-effort)
+    if (mailTransport) {
+      try {
+        await mailTransport.sendMail({
+          from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+          to: email,
+          subject: 'Your AuraLifestyle OTP',
+          text: `Your OTP is ${otp}. It is valid for ${OTP_TTL_MIN} minutes.`,
+          html: `<p>Your OTP is <b>${otp}</b>. It is valid for ${OTP_TTL_MIN} minutes.</p>`,
+        });
+      } catch (e) {
+        console.error('OTP mail error:', e?.message || e);
+      }
+    }
+
+    // For DEV only, optionally echo OTP in response
+    const echo = (process.env.NODE_ENV !== 'production') && String(process.env.OTP_ECHO || '0') === '1';
+    res.json({ success: true, message: 'OTP sent', ...(echo ? { devOtp: otp } : {}) });
+  } catch (e) {
+    console.error('request-otp error:', e);
+    res.status(500).json({ success: false, message: 'otp_request_failed' });
+  }
+});
+
 router.post('/verify-otp', async (req, res) => {
   try {
-    const { email, code } = req.body || {};
-    if (!email || !code) return res.status(400).json({ error: 'Email and code are required' });
+    const { email, otp, name, phone } = req.body || {};
+    if (!email || !otp) return res.status(400).json({ success: false, message: 'Email/OTP required' });
 
-    const token = await OtpToken.findOne({ email }).sort({ createdAt: -1 });
-    if (!token) return res.status(400).json({ error: 'No OTP found. Please request a new code.' });
+    // Find latest OTP for this email
+    const record = await OtpToken.findOne({ email }).sort({ createdAt: -1 });
+    if (!record) return res.status(400).json({ success: false, message: 'Invalid OTP' });
 
-    // expired?
-    if (token.expiresAt.getTime() < Date.now()) {
-      await OtpToken.deleteMany({ email });
-      return res.status(400).json({ error: 'OTP expired. Please request a new code.' });
+    const now = new Date();
+    if (record.expiresAt <= now) {
+      return res.status(400).json({ success: false, message: 'OTP expired' });
+    }
+    if (String(record.otp) !== String(otp)) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
     }
 
-    // match?
-    if (token.otp !== String(code)) {
-      return res.status(400).json({ error: 'Invalid code' });
+    // Upsert user
+    let user = await User.findOne({ email });
+    if (!user) {
+      // Generate a random password to satisfy schema (user can login via OTP; password login optional)
+      const randomPass = 'OTP@' + Math.random().toString(36).slice(-12);
+      user = await User.create({
+        name: name || email.split('@')[0],
+        email,
+        phone: phone || null,
+        password: randomPass,
+      });
     }
 
-    // success -> cleanup token(s)
+    // Consume OTPs for this email
     await OtpToken.deleteMany({ email });
 
-    // make sure user exists
-    const user = await User.findOneAndUpdate(
-      { email },
-      { $setOnInsert: { email } },
-      { new: true, upsert: true }
-    );
-
-    // create JWT
-    const jwtToken = jwt.sign(
-      { sub: user._id.toString(), email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
-
-    return res.json({
-      token: jwtToken,
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name || 'Customer',
-      },
-    });
-  } catch (err) {
-    console.error('verify-otp error:', err);
-    return res.status(500).json({ error: 'OTP verification failed', detail: err?.message });
+    const token = sign(user);
+    res.json({ success: true, token, user: { ...user.toObject(), password: undefined } });
+  } catch (e) {
+    console.error('verify-otp error:', e);
+    res.status(500).json({ success: false, message: 'otp_verify_failed' });
   }
 });
 

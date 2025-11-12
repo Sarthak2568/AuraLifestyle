@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "sku": "MEN-ROSE-DRESS", "qty": 1 },
+    { "sku": "m-04", "qty": 1 },
+    { "sku": "m-05", "qty": 1 },
+    { "sku": "m-06", "qty": 1 },
+    { "sku": "m-12", "qty": 1 },
+    { "sku": "w-01", "qty": 1 },
+    { "sku": "w-06", "qty": 1 }
+  ]
+}
+

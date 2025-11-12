@@ -37,7 +37,7 @@ const REELS = [
     views: 21000,
     likes: 31,
     shares: 22,
-    sources: ["/videos/icedvideo.MP4", "/videos/IMG_6328.mov"],
+    sources: ["/videos/IMG_6328.MP4", "/videos/IMG_6328.mov"],
     poster: "/images/posters/serene-strings.jpg",
     product: { id: "w-09", title: "Serene Strings Co-ord Set", price: 1699, mrp: 1899, image: "/images/W-09.png", href: "/product/w-09" },
   },

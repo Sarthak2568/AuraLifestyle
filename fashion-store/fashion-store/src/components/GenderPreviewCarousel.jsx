@@ -12,12 +12,12 @@ export default function GenderPreviewCarousel() {
   const nav = useNavigate();
 
   const womenSlides = [
-    "/images/home_women.png",
+    "/images/home_women.jpg",
     "/images/W-07 f.png",
     "/images/W-06 f.png",
   ];
   const menSlides = [
-    "/images/home_men.png",
+    "/images/home_men.jpg",
     "/images/M-10.png",
     "/images/M-09.png",
   ];

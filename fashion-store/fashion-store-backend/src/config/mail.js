@@ -1,61 +1,56 @@
+// src/config/mail.js
 import nodemailer from 'nodemailer';
 
-export function getTransporter() {
-  const {
-    EMAIL_HOST,
-    EMAIL_PORT,
-    EMAIL_SECURE,
-    EMAIL_USER,
-    EMAIL_PASS,
-  } = process.env;
+export const FROM_EMAIL = (process.env.EMAIL_USER || '').trim();
+export const FROM_NAME  = (process.env.EMAIL_FROM || 'AuraLifestyle').replace(/<.*?>/g, '').trim();
 
-  if (!EMAIL_USER || !EMAIL_PASS) {
-    throw new Error('EMAIL_USER/EMAIL_PASS missing in environment');
-  }
+export const transporter =
+  process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS
+    ? nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: Number(process.env.EMAIL_PORT || 465),
+        secure: String(process.env.EMAIL_SECURE || 'true') === 'true',
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      })
+    : null;
 
-  // If a host is provided, use explicit SMTP (e.g., Mailtrap/SendGrid).
-  if (EMAIL_HOST) {
-    return nodemailer.createTransport({
-      host: EMAIL_HOST,
-      port: Number(EMAIL_PORT || 587),
-      secure: String(EMAIL_SECURE || 'false') === 'true',
-      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-    });
-  }
+export function orderEmailHTML({ displayOrderId, address, items, sub, gst, total }) {
+  const fmt = (n) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(Math.round(n || 0));
 
-  // Default to Gmail service (requires 2FA + App Password).
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-  });
-}
+  const rows = (items || [])
+    .map(
+      (it) => `
+    <tr>
+      <td>${(it.title || '').replace(/</g, '&lt;')}</td>
+      <td>${it.size || '-'}</td>
+      <td>${it.color || '-'}</td>
+      <td align="right">${it.qty || 1}</td>
+      <td align="right">${fmt(it.price || 0)}</td>
+      <td align="right">${fmt((it.price || 0) * (it.qty || 1))}</td>
+    </tr>`
+    )
+    .join('');
 
-export async function sendOtpEmail(to, code) {
-  const transporter = getTransporter();
-
-  // TEMP: verify SMTP creds so you see the exact reason if it fails.
-  // Remove after you get a success once.
-  try {
-    await transporter.verify();
-    console.log('SMTP verified OK');
-  } catch (e) {
-    console.error('SMTP verify failed:', e);
-    throw e;
-  }
-
-  const html = `
-    <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:auto;padding:24px;">
-      <h2 style="margin:0 0 12px;">Your AuraLifestyle verification code</h2>
-      <p style="margin:0 0 16px;">Use the following code to sign in:</p>
-      <div style="font-size:28px;letter-spacing:6px;font-weight:700;padding:16px 0;">${code}</div>
-      <p style="color:#666;margin:16px 0 0;">This code expires in ${process.env.OTP_EXP_MIN || 10} minutes.</p>
-    </div>
+  return `
+  <h2>Order Confirmed • ${displayOrderId}</h2>
+  <p>Thanks for your purchase. We’re preparing your order.</p>
+  <h3>Delivering to</h3>
+  <div>
+    ${address?.fullName || ''}<br/>
+    ${address?.address1 || ''} ${address?.address2 || ''}<br/>
+    ${[address?.city, address?.state].filter(Boolean).join(', ')} ${address?.pincode || ''}<br/>
+    ${address?.phone ? 'Phone: ' + address.phone : ''}
+  </div>
+  <h3>Items</h3>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <thead><tr><th>Item</th><th>Size</th><th>Color</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p>Subtotal: ${fmt(sub)}<br/>GST: ${fmt(gst)}<br/><b>Total: ${fmt(total)}</b></p>
   `;
-
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-    to,
-    subject: 'Your AuraLifestyle verification code',
-    html,
-  });
 }

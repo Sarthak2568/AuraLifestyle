@@ -1,0 +1,16 @@
+# Node
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.production
+.env.development
+.DS_Store
+npm-debug.log*
+ECHO is on.
+# Logs
+logs/
+*.log
+debug.log
+error.log

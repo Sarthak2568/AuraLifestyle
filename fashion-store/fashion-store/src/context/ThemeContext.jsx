@@ -6,13 +6,13 @@ export const useTheme = () => useContext(ThemeCtx);
 
 const LS_KEY = "aura_theme";
 
-export function ThemeProvider({ children }) {
+function ThemeProviderInner({ children }) {
   const [theme, setTheme] = useState(() => {
     try {
       const stored = localStorage.getItem(LS_KEY);
       if (stored === "dark" || stored === "light") return stored;
     } catch {}
-    // default: keep original black header look -> default dark theme
+    // default: dark (keeps header black look)
     return "dark";
   });
 
@@ -34,3 +34,7 @@ export function ThemeProvider({ children }) {
 
   return <ThemeCtx.Provider value={{ theme, setTheme, toggle }}>{children}</ThemeCtx.Provider>;
 }
+
+// Single named export + default export (no duplicate `export` statements)
+export { ThemeProviderInner as ThemeProvider };
+export default ThemeProviderInner;

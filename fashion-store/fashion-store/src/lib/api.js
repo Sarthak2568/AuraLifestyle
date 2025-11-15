@@ -22,6 +22,7 @@ export function getAuthToken() {
 }
 
 // --- base fetch wrapper ---
+// note: keep this internal but also export a public alias `apiFetch` for older imports
 async function req(path, { method = "GET", json, headers, raw } = {}) {
   const h = { ...(headers || {}) };
   const token = getAuthToken();
@@ -44,6 +45,16 @@ async function req(path, { method = "GET", json, headers, raw } = {}) {
     }
   }
   return raw ? res : res.json();
+}
+
+/* ---------- Public alias for backward compatibility ---------- */
+/**
+ * apiFetch(path, opts)
+ * - Backwards-compatible wrapper used by some files that import `apiFetch`.
+ * - opts: same as internal req — { method, json, headers, raw }
+ */
+export function apiFetch(path, opts = {}) {
+  return req(path, opts);
 }
 
 /* -------------------- AUTH -------------------- */
@@ -103,7 +114,6 @@ export const ordersApi = {
   },
 };
 
-/* -------------------- ADMIN -------------------- */
 /* -------------------- ADMIN -------------------- */
 export const adminApi = {
   async stats() {

@@ -1,18 +1,21 @@
-
-import "./index.css";  
 // src/main.jsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App.jsx';
-import StoreProvider from './context/StoreContext.jsx'; // default import
-import { ToastProvider } from './context/ToastContext.jsx';
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App";
+import ThemeProvider from "@/context/ThemeContext";
+import StoreProvider from "@/context/StoreContext";
+import "./index.css";
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+const root = createRoot(document.getElementById("root"));
+root.render(
   <React.StrictMode>
-    <ToastProvider>
-      <StoreProvider>
-        <App />
-      </StoreProvider>
-    </ToastProvider>
+    <BrowserRouter>
+      <ThemeProvider>
+        <StoreProvider>
+          <App />
+        </StoreProvider>
+      </ThemeProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

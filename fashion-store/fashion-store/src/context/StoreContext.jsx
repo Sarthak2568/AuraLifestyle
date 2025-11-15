@@ -7,15 +7,12 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import {  productsApi } from "../lib/api";
-import { authApi, inventoryApi, ordersApi } from "@/lib/api";
-// or: from "../lib/api" depending on your alias setup
-
+import { productsApi } from "@/lib/api";
+import { authApi } from "@/lib/api";
 
 const Ctx = createContext(null);
 export const useStore = () => useContext(Ctx);
 
-// ---------- utils ----------
 const readLS = (k, fallback) => {
   try {
     const v = localStorage.getItem(k);
@@ -37,12 +34,10 @@ const slugify = (s = "") =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
-
 const itemKey = (o) => `${o.id}|${o.size || ""}|${o.color || ""}`;
 
-// ---------- provider ----------
-function StoreProvider({ children }) {
-  // --- auth ---
+function StoreProviderInner({ children }) {
+  // auth
   const [user, setUser] = useState(() => readLS("user", null));
   const [token, setToken] = useState(() => localStorage.getItem("token") || "");
 
@@ -58,16 +53,19 @@ function StoreProvider({ children }) {
     return true;
   };
 
-  const loginVerifyOtp = async (email, code) => {
-    const { token: jwt, user: u } = await authApi.verifyOtp(email, code);
-    setUser(u);
-    setToken(jwt);
-    localStorage.setItem("user", JSON.stringify(u));
-    localStorage.setItem("token", jwt);
-    return u;
+  const loginVerifyOtp = async ({ email, otp, name = "", phone = "" }) => {
+    // keep API shape compatible with your lib/api auth verify
+    const data = await authApi.verifyOtp({ email, otp, name, phone });
+    if (data?.token) {
+      setToken(data.token);
+      setUser(data.user || null);
+      localStorage.setItem("token", data.token);
+      if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
+    }
+    return data;
   };
 
-  // --- products (fetch from backend; fallback=[]) ---
+  // products
   const [products, setProducts] = useState([]);
   useEffect(() => {
     let alive = true;
@@ -83,7 +81,6 @@ function StoreProvider({ children }) {
     };
   }, []);
 
-  // Index for local, synchronous product lookups (keeps old API alive)
   const index = useMemo(() => {
     const map = new Map();
     (products || []).forEach((p) => {
@@ -100,7 +97,7 @@ function StoreProvider({ children }) {
     [index]
   );
 
-  // --- cart / wishlist (LS backed) ---
+  // cart/wishlist
   const [cart, setCart] = useState(() => readLS("cart", []));
   const [wishlist, setWishlist] = useState(() => readLS("wishlist", []));
 
@@ -144,7 +141,6 @@ function StoreProvider({ children }) {
     });
   };
 
-  // Flexible qty setter: accepts (id, qty, size, color) OR (itemObj, qty) OR (keyString, qty)
   const setCartQty = (a, qtyLike, size, color) => {
     const qty = Math.max(1, Math.min(99, Number(qtyLike) || 1));
     let key;
@@ -153,17 +149,15 @@ function StoreProvider({ children }) {
     } else if (typeof a === "object" && a) {
       key = itemKey(a);
     } else {
-      key = a; // already a key string
+      key = a;
     }
     setCart((prev) =>
       prev.map((p) => (itemKey(p) === key ? { ...p, qty } : p))
     );
   };
 
-  // Back-compat with older Cart.jsx that calls updateCartQty(id, n, size, color)
   const updateCartQty = (id, n, size, color) => setCartQty(id, n, size, color);
 
-  // Flexible remover: (id, size, color) OR (itemObj) OR (keyString)
   const removeFromCart = (...args) => {
     let key;
     if (args.length === 1 && typeof args[0] === "object") {
@@ -173,7 +167,7 @@ function StoreProvider({ children }) {
       if (typeof id === "string" && (size !== undefined || color !== undefined)) {
         key = `${id}|${size || ""}|${color || ""}`;
       } else {
-        key = id; // assume key string
+        key = id;
       }
     }
     if (!key) return;
@@ -207,7 +201,6 @@ function StoreProvider({ children }) {
     });
   };
 
-  // Back-compat helpers used in some Cart code
   const moveToWishlist = (cartItem) => {
     if (!cartItem?.id) return;
     setWishlist((prev) =>
@@ -227,23 +220,20 @@ function StoreProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      // auth
       user,
       token,
       logout,
       loginRequestOtp,
       loginVerifyOtp,
 
-      // catalog
       products,
       setProducts,
       getProductSync,
 
-      // cart + wishlist
       cart,
       addToCart,
       setCartQty,
-      updateCartQty, // legacy alias
+      updateCartQty,
       removeFromCart,
       clearCart,
 
@@ -258,7 +248,6 @@ function StoreProvider({ children }) {
       products,
       cart,
       wishlist,
-      // stable fns are fine, but include to be explicit:
       logout,
       loginRequestOtp,
       loginVerifyOtp,
@@ -269,4 +258,5 @@ function StoreProvider({ children }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export default StoreProvider;
+export { StoreProviderInner as StoreProvider };
+export default StoreProviderInner;

@@ -2,18 +2,47 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
- * Tweak 'focal' to keep faces in frame (only used when fit="cover").
- * Lower second value shows more top (e.g., "50% 22%"), higher shows more bottom ("50% 40%").
+ * SLIDES:
+ * You asked to show *women section girl* → using /images/home_women.png.
+ * Added both Men & Women hero slides below the videos.
  */
 const SLIDES = [
-  { id: "hero-01", kind: "video", src: "/videos/hero-1.mp4", poster: "/images/hero-1.jpg", focal: "50% 32%" },
-  { id: "hero-02", kind: "video", src: "/videos/fvideo.mp4", focal: "50% 26%" },
+  // --- Videos ---
+  {
+    id: "hero-01",
+    kind: "video",
+    src: "/videos/hero-1.mp4",
+    poster: "/images/hero-1.jpg",
+    focal: "50% 32%",
+  },
+  {
+    id: "hero-02",
+    kind: "video",
+    src: "/videos/fvideo.mp4",
+    focal: "50% 26%",
+  },
+
+  // --- Men banner ---
+  {
+    id: "hero-men",
+    kind: "image",
+    src: "/images/home_men.png",
+    focal: "50% 32%",
+  },
+
+  // --- Women banner (YOUR CHANGE HERE) ---
+  {
+    id: "hero-women",
+    kind: "image",
+    src: "/images/W-06 f.png",
+    focal: "50% 32%",
+  },
 ];
 
 const DEFAULT_DELAY = 4500;
 const HOLD_MS_MAP = { "hero-01": 10000 };
 
-/* Measure any fixed header (only used if offsetHeader=true) */
+/* Measures fixed headers to offset carousel if needed */
 function measureTopFixedOffset() {
   const explicit =
     document.querySelector("[data-nav]") ||
@@ -23,24 +52,31 @@ function measureTopFixedOffset() {
     document.querySelector("header") ||
     document.querySelector("nav");
 
-  const fixedTop = Array.from(document.body.querySelectorAll("*")).filter((el) => {
+  const fixedTop = Array.from(
+    document.body.querySelectorAll("*")
+  ).filter((el) => {
     const cs = window.getComputedStyle(el);
-    return cs.position === "fixed" && (cs.top === "0px" || cs.top === "0") && el.offsetHeight > 0 && el.offsetWidth > 0;
+    return (
+      cs.position === "fixed" &&
+      (cs.top === "0px" || cs.top === "0") &&
+      el.offsetHeight > 0
+    );
   });
 
   let h = 0;
-  if (fixedTop.length) h = Math.max(...fixedTop.map((el) => Math.round(el.getBoundingClientRect().height)));
+  if (fixedTop.length)
+    h = Math.max(
+      ...fixedTop.map((el) => Math.round(el.getBoundingClientRect().height))
+    );
   if (!h && explicit) h = Math.round(explicit.getBoundingClientRect().height);
-  return h || 72; // fallback
+  return h || 72;
 }
 
-/**
- * Props:
- * - variant: "default" | "tall" (height preset)
- * - fit: "cover" | "contain"  -> "contain" shows the entire frame (no crop)
- * - offsetHeader: boolean     -> add margin-top to sit below any fixed header
- */
-export default function HeroCarousel({ variant = "default", fit = "cover", offsetHeader = false }) {
+export default function HeroCarousel({
+  variant = "default",
+  fit = "cover",
+  offsetHeader = false,
+}) {
   const tall = variant === "tall";
   const fitContain = fit === "contain";
 
@@ -48,22 +84,16 @@ export default function HeroCarousel({ variant = "default", fit = "cover", offse
   const [topOffset, setTopOffset] = useState(72);
   const videoRef = useRef(null);
 
-  // Height presets
   const heightClasses = tall
     ? "h-[82vw] sm:h-[62vw] md:h-[52vw] lg:h-[46vw] xl:h-[42vw] min-h-[420px] max-h-[960px]"
     : "h-[68vw] sm:h-[54vw] md:h-[46vw] lg:h-[40vw] xl:h-[36vw] min-h-[340px] max-h-[880px]";
 
-  // Only add header offset if explicitly requested
   useLayoutEffect(() => {
     if (!offsetHeader) return;
     const update = () => setTopOffset(measureTopFixedOffset());
     update();
     window.addEventListener("resize", update);
-    const header =
-      document.querySelector("[data-nav]") ||
-      document.querySelector("#navbar") ||
-      document.querySelector("header") ||
-      document.querySelector("nav");
+    const header = document.querySelector("header") || document.querySelector("nav");
     let ro;
     if (header && "ResizeObserver" in window) {
       ro = new ResizeObserver(update);
@@ -78,7 +108,6 @@ export default function HeroCarousel({ variant = "default", fit = "cover", offse
   const next = () => setIdx((i) => (i + 1) % SLIDES.length);
   const prev = () => setIdx((i) => (i - 1 + SLIDES.length) % SLIDES.length);
 
-  // Preload next image
   useEffect(() => {
     const n = SLIDES[(idx + 1) % SLIDES.length];
     if (n?.kind === "image") {
@@ -87,7 +116,6 @@ export default function HeroCarousel({ variant = "default", fit = "cover", offse
     }
   }, [idx]);
 
-  // Autoplay (longer hold for video)
   useEffect(() => {
     let timer;
     const active = SLIDES[idx];
@@ -111,23 +139,31 @@ export default function HeroCarousel({ variant = "default", fit = "cover", offse
     return () => clearTimeout(timer);
   }, [idx]);
 
-  const mediaClass = `w-full h-full ${fitContain ? "object-contain" : "object-cover"}`;
+  const mediaClass = `w-full h-full ${
+    fitContain ? "object-contain" : "object-cover"
+  }`;
 
   return (
     <section
       className="relative w-full"
       style={offsetHeader ? { marginTop: `${topOffset}px` } : undefined}
     >
-      {/* Responsive height; object-fit governs cropping */}
-      <div className={`relative w-full ${heightClasses} overflow-hidden ${fitContain ? "bg-black" : ""}`}>
+      <div
+        className={`relative w-full ${heightClasses} overflow-hidden ${
+          fitContain ? "bg-black" : ""
+        }`}
+      >
         {SLIDES.map((s, i) => {
           const isActive = i === idx;
-          const style = fitContain ? undefined : { objectPosition: s.focal || "50% 30%" };
+          const style = fitContain ? undefined : { objectPosition: s.focal };
+
           return (
             <div
               key={s.id}
               className={`absolute inset-0 transition-opacity duration-700 ${
-                isActive ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                isActive
+                  ? "opacity-100 pointer-events-auto"
+                  : "opacity-0 pointer-events-none"
               }`}
             >
               {s.kind === "video" ? (
@@ -143,12 +179,7 @@ export default function HeroCarousel({ variant = "default", fit = "cover", offse
                   style={style}
                 />
               ) : (
-                <img
-                  src={s.src}
-                  alt=""
-                  className={mediaClass}
-                  style={style}
-                />
+                <img src={s.src} alt="" className={mediaClass} style={style} />
               )}
             </div>
           );
@@ -161,15 +192,14 @@ export default function HeroCarousel({ variant = "default", fit = "cover", offse
           type="button"
           onClick={prev}
           className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-white/80 hover:bg-white backdrop-blur border flex items-center justify-center"
-          aria-label="Previous slide"
         >
           <ChevronLeft size={18} />
         </button>
+
         <button
           type="button"
           onClick={next}
           className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-white/80 hover:bg-white backdrop-blur border flex items-center justify-center"
-          aria-label="Next slide"
         >
           <ChevronRight size={18} />
         </button>
@@ -177,12 +207,15 @@ export default function HeroCarousel({ variant = "default", fit = "cover", offse
 
       {/* dots */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
-        {SLIDES.map((s, i) => (
+        {SLIDES.map((_, i) => (
           <button
-            key={s.id}
+            key={i}
             onClick={() => setIdx(i)}
-            className={`h-2 w-2 rounded-full transition ${i === idx ? "bg-white" : "bg-white/50 hover:bg-white/80"}`}
-            aria-label={`Go to slide ${i + 1}`}
+            className={`h-2 w-2 rounded-full transition ${
+              i === idx
+                ? "bg-white"
+                : "bg-white/50 hover:bg-white/80"
+            }`}
           />
         ))}
       </div>

@@ -1,51 +1,201 @@
 // src/lib/api.js
-const BASE =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:5000";
+// Single place for API calls used by both shop and admin.
 
-async function json(url, opts = {}) {
-  const res = await fetch(url, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-    ...opts,
-  });
-  const text = await res.text();
-  let data;
+const BASE = import.meta.env.VITE_API_BASE || "/api";
+
+// --- token helpers (used internally) ---
+let authToken = null;
+export function setAuthToken(token) {
+  authToken = token || null;
   try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { error: text || "Invalid JSON" };
-  }
-  if (!res.ok) {
-    const msg = data?.error || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return data;
+    if (token) localStorage.setItem("auth_token", token);
+    else localStorage.removeItem("auth_token");
+  } catch {}
+}
+export function getAuthToken() {
+  if (authToken) return authToken;
+  try {
+    const t = localStorage.getItem("auth_token");
+    authToken = t || null;
+  } catch {}
+  return authToken;
 }
 
+// --- base fetch wrapper ---
+async function req(path, { method = "GET", json, headers, raw } = {}) {
+  const h = { ...(headers || {}) };
+  const token = getAuthToken();
+  if (token) h.Authorization = `Bearer ${token}`;
+
+  let body;
+  if (json !== undefined) {
+    h["Content-Type"] = "application/json";
+    body = JSON.stringify(json);
+  }
+
+  const res = await fetch(`${BASE}${path}`, { method, headers: h, body, credentials: "include" });
+  if (!res.ok) {
+    let m = `${res.status}`;
+    try {
+      const e = await res.json();
+      throw Object.assign(new Error(e.message || m), { status: res.status, payload: e });
+    } catch {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  }
+  return raw ? res : res.json();
+}
+
+/* -------------------- AUTH -------------------- */
 export const authApi = {
-  // matches backend: POST /api/auth/request-otp { email, name? }
-  requestOtp(email, name = "") {
-    return json(`${BASE}/api/auth/request-otp`, {
-      method: "POST",
-      body: JSON.stringify({ email, name }),
-    });
+  async requestOtp(email) {
+    return req(`/auth/request-otp`, { method: "POST", json: { email } });
   },
-  // matches backend: POST /api/auth/verify-otp { email, code }
-  verifyOtp(email, code) {
-    return json(`${BASE}/api/auth/verify-otp`, {
+  async verifyOtp({ email, otp, name, phone }) {
+    const data = await req(`/auth/verify-otp`, {
       method: "POST",
-      body: JSON.stringify({ email, code }),
+      json: { email, otp, name, phone },
     });
+    // store token for subsequent calls
+    if (data?.token) setAuthToken(data.token);
+    return data;
+  },
+  async me() {
+    return req(`/auth/me`);
+  },
+  async logout() {
+    setAuthToken(null);
+    return { success: true };
   },
 };
 
+/* -------------------- PRODUCTS -------------------- */
 export const productsApi = {
-  list() {
-    return json(`${BASE}/api/products`);
+  // list with query: { q, tag, category, limit, page }
+  async list(query = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    });
+    const q = qs.toString();
+    return req(`/products${q ? `?${q}` : ""}`);
   },
-  get(idOrSlug) {
-    return json(`${BASE}/api/products/${encodeURIComponent(idOrSlug)}`);
+  async detail(key) {
+    return req(`/products/${encodeURIComponent(key)}`);
   },
 };
 
-export default { authApi, productsApi };
+/* -------------------- INVENTORY -------------------- */
+export const inventoryApi = {
+  // items: [{ sku, qty }, ...]
+  async check(items) {
+    return req(`/inventory/check`, { method: "POST", json: { items } });
+  },
+};
+
+/* -------------------- ORDERS (user) -------------------- */
+export const ordersApi = {
+  async mine() {
+    return req(`/orders/mine`);
+  },
+  async summary() {
+    return req(`/orders/mine/summary`);
+  },
+};
+
+/* -------------------- ADMIN -------------------- */
+/* -------------------- ADMIN -------------------- */
+export const adminApi = {
+  async stats() {
+    return req(`/admin/stats`);
+  },
+  // Admin product management
+  async products() {
+    return req(`/admin/products`);
+  },
+  async addProduct(payload) {
+    return req(`/admin/products`, { method: "POST", json: payload });
+  },
+  async updateProduct(id, payload) {
+    return req(`/admin/products/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      json: payload,
+    });
+  },
+
+  // Orders
+  // list with optional query { q, status, page, limit, from, to }
+  async orders(query = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    });
+    const q = qs.toString();
+    return req(`/admin/orders${q ? `?${q}` : ""}`);
+  },
+  async getOrder(id) {
+    return req(`/admin/orders/${encodeURIComponent(id)}`);
+  },
+  async updateOrder(id, payload) {
+    return req(`/admin/orders/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      json: payload,
+    });
+  },
+
+  // Inventory endpoints
+  async inventoryList(query = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    });
+    const q = qs.toString();
+    return req(`/admin/inventory${q ? `?${q}` : ""}`);
+  },
+  async restock({ sku, qty }) {
+    return req(`/admin/inventory/restock`, { method: "PATCH", json: { sku, qty } });
+  },
+
+  // Users
+  async users(query = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    });
+    const q = qs.toString();
+    return req(`/admin/users${q ? `?${q}` : ""}`);
+  },
+  async updateUser(id, payload) {
+    return req(`/admin/users/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      json: payload,
+    });
+  },
+  async deleteUser(id) {
+    return req(`/admin/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  // Settings
+  async settings() {
+    return req(`/admin/settings`);
+  },
+  async updateSettings(payload) {
+    return req(`/admin/settings`, { method: "PATCH", json: payload });
+  },
+
+  // Export & reports
+  async exportOrdersCsv(query = {}) {
+    // returns raw Response for file download
+    const qs = new URLSearchParams();
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    });
+    const q = qs.toString();
+    return req(`/admin/orders/export${q ? `?${q}` : ""}`, { raw: true });
+  },
+
+  // Low-stock helper (simple)
+  async lowStock() {
+    return req(`/admin/low-stock`);
+  },
+};

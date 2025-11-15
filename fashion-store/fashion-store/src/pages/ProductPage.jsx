@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useEffect, useState } from "react";
+// /fashion-store/src/pages/ProductPage.jsx
+import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { useStore } from "../context/StoreContext";
 import { useToast } from "../context/ToastContext";
@@ -8,7 +9,12 @@ import IKImg from "@/components/IKImg";
 
 /* ---------- helpers ---------- */
 const slugify = (s = "") =>
-  s.toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
+  s
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
 
 const getParamKey = (params, location) => {
   const first = Object.keys(params)[0];
@@ -31,7 +37,9 @@ function SizeRecommender({ onPick, product }) {
     const sizes = product?.sizes || [];
     if (!h || !w || !sizes.length) return null;
 
-    const order = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"].filter((s) => sizes.includes(s));
+    const order = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"].filter((s) =>
+      sizes.includes(s)
+    );
     const mid = Math.floor((order.length - 1) / 2);
     let idx = mid;
 
@@ -80,7 +88,9 @@ function SizeRecommender({ onPick, product }) {
             type="button"
             onClick={() => setFit(k)}
             className={`px-3 py-1 rounded border ${
-              fit === k ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : ""
+              fit === k
+                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+                : ""
             }`}
           >
             {k === "true" ? "True to size" : k[0].toUpperCase() + k.slice(1)}
@@ -88,7 +98,9 @@ function SizeRecommender({ onPick, product }) {
         ))}
       </div>
 
-      <div className="mt-3 text-sm opacity-80">Enter height &amp; weight to get a recommendation.</div>
+      <div className="mt-3 text-sm opacity-80">
+        Enter height &amp; weight to get a recommendation.
+      </div>
 
       {recommend && (
         <div className="mt-3 flex items-center justify-between">
@@ -108,21 +120,58 @@ function SizeRecommender({ onPick, product }) {
   );
 }
 
-/* ---------- page ---------- */
+/* ---------- Carousel helper ---------- */
+const ArrowBtn = ({ left = false, onClick }) => (
+  <button
+    onClick={onClick}
+    aria-label={left ? "Previous image" : "Next image"}
+    style={{
+      position: "absolute",
+      top: "50%",
+      transform: "translateY(-50%)",
+      [left ? "left" : "right"]: 12,
+      zIndex: 30,
+      background: "rgba(255,255,255,0.95)",
+      border: "1px solid #e5e5e5",
+      borderRadius: "9999px",
+      width: 36,
+      height: 36,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+    }}
+  >
+    {left ? "‹" : "›"}
+  </button>
+);
+
+/* ---------- Main Page ---------- */
 export default function ProductPage() {
   const params = useParams();
   const location = useLocation();
   const key = getParamKey(params, location);
 
-  const { getProductSync, products: ctxProducts, addToCart, toggleWishlist, wishlist } = useStore();
+  const {
+    getProductSync,
+    products: ctxProducts,
+    addToCart,
+    toggleWishlist,
+    wishlist,
+  } = useStore();
   const { show } = useToast();
 
-  const products = (Array.isArray(ctxProducts) && ctxProducts.length ? ctxProducts : ALL_PRODUCTS) || [];
+  const products =
+    (Array.isArray(ctxProducts) && ctxProducts.length
+      ? ctxProducts
+      : ALL_PRODUCTS) || [];
 
   const product = useMemo(() => {
     if (!key) return null;
 
-    let found = typeof getProductSync === "function" ? getProductSync(key) : null;
+    let found =
+      typeof getProductSync === "function" ? getProductSync(key) : null;
     if (found) return found;
 
     const k = String(key).toLowerCase();
@@ -137,7 +186,6 @@ export default function ProductPage() {
         titleSlug === k
       );
     };
-
     return products.find(byAnyKey) || null;
   }, [getProductSync, products, key]);
 
@@ -148,7 +196,9 @@ export default function ProductPage() {
     return (
       <div ref={topRef} className="max-w-6xl mx-auto px-4 py-14 min-h-[60vh]">
         <p className="text-lg font-medium">Product not found.</p>
-        <p className="opacity-70 text-sm mt-1">Check your link or try again from the catalog.</p>
+        <p className="opacity-70 text-sm mt-1">
+          Check your link or try again from the catalog.
+        </p>
       </div>
     );
   }
@@ -156,21 +206,38 @@ export default function ProductPage() {
   const title = product.title || product.name || "Product";
   const subtitle =
     product.subtitle ||
-    ((product.gender || "").toLowerCase() === "women" ? "Athleisure Bottoms" : "Athleisure Bottoms");
+    ((product.gender || "").toLowerCase() === "women" ? "Women" : "Men");
 
   const colorList = product.colors || [];
   const swatches = product.colorSwatches || {};
   const [color, setColor] = useState(colorList[0] || "Default");
 
-  const coverCandidate =
-    product.imagesByColor?.[color]?.[0] ||
-    (Array.isArray(product.images) ? product.images[0] : null) ||
-    product.image ||
-    product.cover ||
-    "/images/placeholder.jpg";
+  // Build images array depending on color selection & fallbacks
+  const getImagesForColor = useCallback((p, clr) => {
+    if (!p) return [];
+    // try imagesByColor first (keys may be 'White' or 'OffWhite' etc.)
+    const byColor =
+      p.imagesByColor?.[clr] ||
+      p.imagesByColor?.[clr === "Off-White" ? "White" : clr];
+    if (Array.isArray(byColor) && byColor.length) return byColor;
+    if (Array.isArray(p.images) && p.images.length) return p.images;
+    if (p.image) return [p.image];
+    return [];
+  }, []);
 
-  const [cover, setCover] = useState(coverCandidate);
-  useEffect(() => setCover(coverCandidate), [coverCandidate]);
+  const [images, setImages] = useState(() => getImagesForColor(product, color));
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  // When product or color changes, update images and reset idx
+  useEffect(() => {
+    const imgs = getImagesForColor(product, color);
+    setImages(imgs.length ? imgs : ["/images/placeholder.jpg"]);
+    setCurrentIdx(0);
+  }, [product, color, getImagesForColor]);
+
+  // cover used by addToCart etc. Keep consistent (current image)
+  const cover =
+    images?.[currentIdx] || images?.[0] || product.image || "/images/placeholder.jpg";
 
   const sizeList = product.sizes || ["S", "M", "L", "XL"];
   const [size, setSize] = useState(sizeList[0]);
@@ -178,7 +245,9 @@ export default function ProductPage() {
 
   const [qty, setQty] = useState(1);
 
-  const wished = Array.isArray(wishlist) && wishlist.some((w) => String(w.id) === String(product.id));
+  const wished =
+    Array.isArray(wishlist) &&
+    wishlist.some((w) => String(w.id) === String(product.id));
 
   const addItem = () => {
     addToCart?.({
@@ -194,11 +263,11 @@ export default function ProductPage() {
 
     show("Added to bag", {
       type: "cart",
-      subtitle: `${title}${size ? ` • ${size}` : ""}${color ? ` • ${color}` : ""}`,
+      subtitle: `${title}${size ? ` • ${size}` : ""}${
+        color ? ` • ${color}` : ""
+      }`,
       timeout: 1600,
     });
-
-    show({ title: "Added to wishlist", subtitle: title, type: "wish", timeout: 1400 });
   };
 
   const onImgError = (e) => {
@@ -206,6 +275,86 @@ export default function ProductPage() {
       e.target.src = "/images/placeholder.jpg";
     }
   };
+
+  /* ---------- Carousel interactions: keyboard & swipe ---------- */
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "ArrowLeft")
+        setCurrentIdx((i) => (i - 1 + images.length) % images.length);
+      if (e.key === "ArrowRight")
+        setCurrentIdx((i) => (i + 1) % images.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [images.length]);
+
+  // touch/mouse swipe
+  const carouselRef = useRef(null);
+  const touchStartX = useRef(null);
+  const touchDeltaX = useRef(0);
+
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return;
+
+    const onTouchStart = (ev) => {
+      touchStartX.current = ev.touches?.[0]?.clientX ?? null;
+      touchDeltaX.current = 0;
+    };
+    const onTouchMove = (ev) => {
+      if (touchStartX.current == null) return;
+      const x = ev.touches?.[0]?.clientX ?? 0;
+      touchDeltaX.current = x - touchStartX.current;
+    };
+    const onTouchEnd = () => {
+      if (touchStartX.current == null) return;
+      if (Math.abs(touchDeltaX.current) > 50) {
+        if (touchDeltaX.current < 0)
+          setCurrentIdx((i) => (i + 1) % images.length);
+        else setCurrentIdx((i) => (i - 1 + images.length) % images.length);
+      }
+      touchStartX.current = null;
+      touchDeltaX.current = 0;
+    };
+
+    // mouse drag support
+    let mouseDown = false;
+    let mouseStartX = 0;
+    const onMouseDown = (m) => {
+      mouseDown = true;
+      mouseStartX = m.clientX;
+    };
+    const onMouseMove = (m) => {
+      if (!mouseDown) return;
+      touchDeltaX.current = m.clientX - mouseStartX;
+    };
+    const onMouseUp = () => {
+      if (!mouseDown) return;
+      if (Math.abs(touchDeltaX.current) > 60) {
+        if (touchDeltaX.current < 0)
+          setCurrentIdx((i) => (i + 1) % images.length);
+        else setCurrentIdx((i) => (i - 1 + images.length) % images.length);
+      }
+      mouseDown = false;
+      touchDeltaX.current = 0;
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [images.length]);
 
   return (
     <div ref={topRef} className="max-w-6xl mx-auto px-4 py-10">
@@ -215,23 +364,131 @@ export default function ProductPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-10">
+        {/* ---------- Carousel column ---------- */}
         <div>
-          <IKImg
-            src={cover}
-            alt={title}
-            className="w-full rounded-xl object-cover border border-neutral-200 dark:border-neutral-800"
-            width={1200}
-            height={1500}
-            sizes="(min-width:1024px) 50vw, 100vw"
-            onError={onImgError}
-          />
+          <div
+            ref={carouselRef}
+            style={{
+              position: "relative",
+              width: "100%",
+              borderRadius: 12,
+              overflow: "hidden",
+              border: "1px solid #eee",
+              background: "#fafafa",
+              // responsive height: taller on large screens, smaller on mobile
+              minHeight: 520,
+              maxHeight: 820,
+            }}
+          >
+            {/* Arrows */}
+            {images.length > 1 && (
+              <ArrowBtn
+                left
+                onClick={() =>
+                  setCurrentIdx((i) => (i - 1 + images.length) % images.length)
+                }
+              />
+            )}
+            {images.length > 1 && (
+              <ArrowBtn
+                onClick={() =>
+                  setCurrentIdx((i) => (i + 1) % images.length)
+                }
+              />
+            )}
+
+            {/* Sliding track (NO inner padding so images can cover) */}
+            <div
+              aria-roledescription="carousel"
+              style={{
+                display: "flex",
+                width: `${images.length * 100}%`,
+                transform: `translateX(${-currentIdx * (100 / images.length)}%)`,
+                transition: "transform 260ms ease",
+                height: "100%", // ensure track fills container height
+              }}
+            >
+              {images.map((src, i) => (
+                <div
+                  key={i}
+                  style={{
+                    minWidth: `${100 / images.length}%`,
+                    height: "100%", // make each slide full height
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxSizing: "border-box",
+                    padding: 0,
+                    background: "#fff",
+                  }}
+                >
+                  <IKImg
+                    src={src}
+                    alt={`${title} — ${i + 1}`}
+                    className="object-cover"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover", // COVER makes the image fill the container
+                      display: "block",
+                    }}
+                    onError={onImgError}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Thumbnails */}
+          {images.length > 1 && (
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 12,
+                overflowX: "auto",
+                paddingBottom: 4,
+              }}
+            >
+              {images.map((src, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentIdx(i)}
+                  style={{
+                    border: i === currentIdx ? "2px solid #111" : "1px solid #e5e5e5",
+                    padding: 0,
+                    borderRadius: 8,
+                    width: 84,
+                    height: 84,
+                    overflow: "hidden",
+                    background: "#fff",
+                    flex: "0 0 auto",
+                  }}
+                >
+                  <IKImg
+                    src={src}
+                    alt={`thumb ${i + 1}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
+        {/* ---------- Right column (unchanged UI) ---------- */}
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">{title}</h1>
 
           <div className="mt-1 flex items-center gap-3">
-            <div className="text-xl md:text-2xl font-semibold">₹{product.price}</div>
+            <div className="text-xl md:text-2xl font-semibold">
+              ₹{product.price}
+            </div>
             {product.mrp && product.mrp > product.price && (
               <div className="opacity-60 line-through">₹{product.mrp}</div>
             )}
@@ -248,7 +505,9 @@ export default function ProductPage() {
                     key={c}
                     type="button"
                     onClick={() => setColor(c)}
-                    className={`h-7 w-7 rounded-full border ${color === c ? "ring-2 ring-offset-2 ring-black" : ""}`}
+                    className={`h-7 w-7 rounded-full border ${
+                      color === c ? "ring-2 ring-offset-2 ring-black" : ""
+                    }`}
                     title={c}
                     aria-label={c}
                     style={{ background: swatches[c] || "#e5e5e5" }}
@@ -267,7 +526,9 @@ export default function ProductPage() {
                   type="button"
                   onClick={() => setSize(s)}
                   className={`px-4 py-2 rounded border ${
-                    size === s ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : ""
+                    size === s
+                      ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+                      : ""
                   }`}
                 >
                   {s}
@@ -279,23 +540,47 @@ export default function ProductPage() {
           <div className="mt-4">
             <div className="text-sm font-medium">Quantity</div>
             <div className="inline-flex items-center border rounded mt-2">
-              <button type="button" className="px-3 py-1" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
+              <button
+                type="button"
+                className="px-3 py-1"
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+              >
+                −
+              </button>
               <input
                 className="w-16 text-center py-1 bg-transparent outline-none"
                 value={qty}
-                onChange={(e) => setQty(Math.max(1, Math.min(99, Number(e.target.value) || 1)))}
+                onChange={(e) =>
+                  setQty(Math.max(1, Math.min(99, Number(e.target.value) || 1)))
+                }
               />
-              <button type="button" className="px-3 py-1" onClick={() => setQty((q) => Math.min(99, q + 1))}>+</button>
+              <button
+                type="button"
+                className="px-3 py-1"
+                onClick={() => setQty((q) => Math.min(99, q + 1))}
+              >
+                +
+              </button>
             </div>
           </div>
 
           <div className="mt-4 flex gap-3">
-            <button type="button" onClick={addItem} className="px-5 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900">
+            <button
+              type="button"
+              onClick={addItem}
+              className="px-5 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            >
               Add to Cart
             </button>
             <button
               type="button"
-              onClick={() => { addItem(); show("Item added — proceed to checkout", { type: "cart", timeout: 1400 }); }}
+              onClick={() => {
+                addItem();
+                show("Item added — proceed to checkout", {
+                  type: "cart",
+                  timeout: 1400,
+                });
+              }}
               className="px-5 py-2 rounded border"
             >
               Buy Now
@@ -303,11 +588,23 @@ export default function ProductPage() {
             <button
               type="button"
               onClick={() => {
-                const wasWished = Array.isArray(wishlist) && wishlist.some((w) => String(w.id) === String(product.id));
-                toggleWishlist?.({ id: product.id, title, price: product.price, image: cover });
-                show(wasWished ? "Removed from wishlist" : "Added to wishlist", { type: "wish", subtitle: title, timeout: 1600 });
+                const wasWished =
+                  Array.isArray(wishlist) &&
+                  wishlist.some((w) => String(w.id) === String(product.id));
+                toggleWishlist?.({
+                  id: product.id,
+                  title,
+                  price: product.price,
+                  image: cover,
+                });
+                show(
+                  wasWished ? "Removed from wishlist" : "Added to wishlist",
+                  { type: "wish", subtitle: title, timeout: 1600 }
+                );
               }}
-              className={`px-5 py-2 rounded border ${wished ? "bg-rose-600 text-white border-rose-600" : ""}`}
+              className={`px-5 py-2 rounded border ${
+                wished ? "bg-rose-600 text-white border-rose-600" : ""
+              }`}
             >
               {wished ? "Wishlisted" : "Wishlist"}
             </button>
@@ -319,12 +616,22 @@ export default function ProductPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6 text-sm">
             <ul className="space-y-1 list-disc list-inside">
-              {(product.highlightsLeft || ["Cotton-rich terry", "Secure zip pocket"]).map((b) => (
+              {(
+                product.highlightsLeft || [
+                  "Cotton-rich terry",
+                  "Secure zip pocket",
+                ]
+              ).map((b) => (
                 <li key={b}>{b}</li>
               ))}
             </ul>
             <ul className="space-y-1 list-disc list-inside">
-              {(product.highlightsRight || ["Elastic waist w/ drawcord", "Tapered ankle"]).map((b) => (
+              {(
+                product.highlightsRight || [
+                  "Elastic waist w/ drawcord",
+                  "Tapered ankle",
+                ]
+              ).map((b) => (
                 <li key={b}>{b}</li>
               ))}
             </ul>
@@ -342,14 +649,14 @@ export default function ProductPage() {
             <details className="rounded border p-4">
               <summary className="cursor-pointer font-medium">Size Chart</summary>
               <p className="mt-2 text-sm opacity-90">
-                Model is 5'9&quot; wearing size M. Measure around chest &amp; waist for the best fit.
+                Model is 5'9" wearing size M. Measure around chest &amp; waist for the best fit.
               </p>
             </details>
 
             <details className="rounded border p-4">
               <summary className="cursor-pointer font-medium">Fabric &amp; Care</summary>
               <ul className="mt-2 text-sm opacity-90 list-disc list-inside space-y-1">
-                <li>Fabric: 100% Cotton, 220–240 GSM</li>
+                <li>Fabric: 100% Cotton, 220 GSM</li>
                 <li>Machine wash cold with like colours</li>
                 <li>Do not bleach</li>
                 <li>Line dry in shade</li>

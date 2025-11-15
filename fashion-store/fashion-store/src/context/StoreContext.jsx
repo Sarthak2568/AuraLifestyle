@@ -7,7 +7,10 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { authApi, productsApi } from "../lib/api";
+import {  productsApi } from "../lib/api";
+import { authApi, inventoryApi, ordersApi } from "@/lib/api";
+// or: from "../lib/api" depending on your alias setup
+
 
 const Ctx = createContext(null);
 export const useStore = () => useContext(Ctx);

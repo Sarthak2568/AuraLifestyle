@@ -1,39 +1,28 @@
-// src/components/IKImg.tsx
-import React from "react";
-import { ik, ikSrcSet } from "@/lib/ik";
+import React, { useState } from "react";
 
-type Props = React.ImgHTMLAttributes<HTMLImageElement> & {
-  src: string;
-  width: number;  // required to prevent layout shift
-  height: number; // required to prevent layout shift
-  sizes?: string;
-  quality?: number;
-  widths?: number[]; // for srcset
-};
+/**
+ * IKImg - ImageKit-aware <img>, falls back to local if IK not configured/failed.
+ * Usage: <IKImg src="/images/M-10.png" alt="Tee" className="w-24 h-24 object-cover" />
+ * Env: VITE_IK_BASE_URL (e.g. https://ik.imagekit.io/your_id)
+ */
+export default function IKImg({ src = "", alt = "", className = "", ...rest }) {
+  const base = (import.meta.env.VITE_IK_BASE_URL || "").replace(/\/$/, "");
+  const toIK = (p) =>
+    !p || typeof p !== "string" || !p.startsWith("/")
+      ? p
+      : p.startsWith("/images/")
+      ? `/site${p}` // optionally prefix, adjust for your ImageKit folder structure
+      : p;
 
-export default function IKImg({
-  src,
-  width,
-  height,
-  sizes = "100vw",
-  quality = 85,
-  widths = [320, 480, 640, 768, 960, 1200, 1600],
-  loading = "lazy",
-  decoding = "async",
-  ...rest
-}: Props) {
-  const srcUrl = ik(src, { w: width, q: quality });
-  const srcset = ikSrcSet(src, widths, quality);
+  const [local, setLocal] = useState(import.meta.env.DEV || !base);
+  const url = local ? src : `${base}${toIK(src)}?tr=f-auto,q-80`;
 
   return (
     <img
-      src={srcUrl}
-      srcSet={srcset}
-      sizes={sizes}
-      width={width}
-      height={height}
-      loading={loading as any}
-      decoding={decoding as any}
+      src={url}
+      alt={alt}
+      className={className}
+      onError={() => setLocal(true)}
       {...rest}
     />
   );

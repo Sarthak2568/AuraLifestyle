@@ -1,63 +1,268 @@
+// src/data/products.js
 // Put your actual image files under: /public/images/
-// If any extension differs (.png/.jpeg), just change the path below accordingly.
 
 export const ALL_PRODUCTS = [
   // ---------- MEN ----------
-{
-  id: "MEN-ROSE-DRESS",
-  slug: "rose-slit-dress",
-  title: "AURA Basic Tee",
-  price: 799,
-  mrp: 899,
-  gender: "men",
-
-  colors: ["Black", "White"],
-  colorSwatches: { Black: "#0a0a0a", White: "#f6f6f6" },
-  sizes: ["S", "M", "L"],
-
-  // ✅ add this for listing cards
-  image: "/images/M-01.png",
-
-  // ✅ keep paths consistent with your other items
-  imagesByColor: {
-    Black: ["/images/M-01.png"],
-    White: ["/images/M-02.png"]
+  {
+    id: "m-01",
+    title: "Harry Potter Hoodie",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/harry_potter_men.png",
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["Off-White"],
+    colorSwatches: { OffWhite: "#fffcfcff" }
+  },
+  {
+    id: "m-02",
+    title: "Squid Game Hoodie",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/men_squid_game_black_hoodie.png",
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["Black", "Off-White"],
+    colorSwatches: { Black: "#0a0a0a", OffWhite: "#f6f6f6" },
+    imagesByColor: {
+      Black: ["/images/men_squid_game_black_hoodie.jpg", "/images/squid_game_hoodie_3.png"],
+      White: ["/images/men_squid_game_white_hoodie.png"]
+    }
+  },
+  {
+    id: "m-03",
+    title: "Deadpool Hoodie",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/men_deadpool_hoodie.png",
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["Off-White"],
+    colorSwatches: { OffWhite: "#fffcfcff" }
+  },
+  {
+    id: "m-04",
+    title: "Stranger Things Hoodie",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/men_stranger_things_hoodie.png",
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["Black"],
+    colorSwatches: { Black: "#000000" }
+  },
+  {
+    id: "jurassic-park",
+    title: "Jurassic Park Hoodie",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/men_jurassic_park.png",
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["Off-White"],
+    colorSwatches: { OffWhite: "#fffcfcff" }
   },
 
-  // ✅ gallery fallback (optional but safe)
-  images: ["/images/M-01.png"]
-},
-  //{ id: "m-01", title: "Aurora Graphic Oversized Tee", price: 799, mrp: 1199, image: "/images/M-01.png", gender: "men", sizes:["S","M","L","XL"], colors:["Black","White"] },
-  //{ id: "m-02", title: "Street Joggers",                  price: 1299, mrp: 1699, image: "/images/M-02.png", gender: "men", sizes:["S","M","L","XL"], colors:["Grey","Black"] },
-  { id: "m-04", title: "AURA Race Ready Tee",             price: 899, mrp: 999, image: "/images/M-04.png", gender: "men", sizes:["S","M","L"], colors:["Black"], colorSwatches: { Black: "#0a0a0a"} },
-  { id: "m-05", slug: "aura-squid-game-tee", title: "AURA Squid Game Tee",  price: 799, mrp: 899, image: "\images\Squid-game.png", gender: "men", sizes: ["S", "M", "L"], colors:["Black"], colorSwatches: { Black: "#0a0a0a"} },
-  { id: "m-05", slug: "aura-squid-game-white-tee", title: "AURA Squid Game Tee",  price: 799, mrp: 899, image: "\images\M-05.jpg", gender: "men", sizes: ["S", "M", "L"], colors:["white"], colorSwatches: { BWhite: "#ffffff"} },
- // { id: "m-06", title: "Training Tee",                    price: 699,  mrp: 999,  image: "/images/M-06.jpg", gender: "men", sizes:["S","M","L","XL"], colors:["White"] },
- // { id: "m-07", title: "Athleisure Shorts",               price: 899,  mrp: 1199, image: "/images/M-07.jpg", gender: "men", sizes:["S","M","L","XL"], colors:["Black"] },
- // { id: "m-08", title: "Layered Shirt",                   price: 1199, mrp: 1599, image: "/images/M-08.png", gender: "men", sizes:["S","M","L","XL"], colors:["Olive"] },
- // { id: "m-09", title: "Puffer Vest",                     price: 1799, mrp: 2499, image: "/images/M-09.png", gender: "men", sizes:["S","M","L","XL"], colors:["Navy"] },
- // { id: "m-11", title: "Puffer Vest",                     price: 1799, mrp: 2499, image: "/images/M-11.png", gender: "men", sizes:["S","M","L","XL"], colors:["Navy"] },
-  { id: "m-12", title: "AURA Rimberio Tee",                 price: 799, mrp: 899, image: "/images/M-12.png", gender: "men", sizes:["S","M","L"], colors:["white"],colorSwatches: { White: "#ffffff" } },
- // { id: "m-13", title: "Puffer Vest",                     price: 1799, mrp: 2499, image: "/images/M-13.png", gender: "men", sizes:["S","M","L","XL"], colors:["Navy"] },
-  // explicitly requested:
-  //{ id: "m-10", title: "Monochrome Tee – Front & Back Print", price: 899, mrp: 1299, image: "/images/M-10.png", gender: "men", sizes:["S","M","L","XL"], colors:["Black"] },
+  // Aura Basic Tee
+  {
+    id: "m-05-a",
+    slug: "aura-basic-tee",
+    title: "Aura Basic Tee",
+    price: 799,
+    mrp: 899,
+    gender: "men",
+    colors: ["Black", "White"],
+    colorSwatches: { Black: "#0a0a0a", White: "#f6f6f6" },
+    sizes: ["S", "M", "L"],
+    image: "/images/M-01.png",
+    imagesByColor: {
+      Black: ["/images/M-01.png"],
+      White: ["/images/M-02.png"]
+    },
+    images: ["/images/M-01.png"]
+  },
+
+  // AURA Race Ready Tee (keep single M-04.png entry)
+  {
+    id: "m-04-2",
+    title: "AURA Race Ready Tee",
+    price: 899,
+    mrp: 999,
+    image: "/images/M-04.png",
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["Black"],
+    colorSwatches: { Black: "#0a0a0a" }
+  },
+
+  // Squid Game Tee (kept the slugged variant m-07 using M-05.jpg)
+  {
+    id: "m-07",
+    slug: "aura-squid-game-tee",
+    title: "AURA Squid Game Tee",
+    price: 799,
+    mrp: 899,
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["Black", "White"],
+    colorSwatches: { Black: "#0a0a0a", White: "#fffcfcff" },
+    image: "/images/M-05.jpg",
+    imagesByColor: {
+      Black: ["/images/M-05.jpg"],
+      White: ["/images/squid_game_white_tee_men.png"]
+    }
+  },
+
+  {
+    id: "m-05-b",
+    slug: "aura-squid-game-tee-black",
+    title: "AURA Squid Game Tee (Black)",
+    price: 799,
+    mrp: 899,
+    image: "/images/Squid-game.png",
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["Black"],
+    colorSwatches: { Black: "#0a0a0a" }
+  },
+
+  {
+    id: "m-12",
+    title: "AURA Rimberio Tee",
+    price: 799,
+    mrp: 899,
+    image: "/images/M-12.png",
+    gender: "men",
+    sizes: ["S", "M", "L"],
+    colors: ["White"],
+    colorSwatches: { White: "#ffffff" }
+  },
 
   // ---------- WOMEN ----------
-  { id: "w-01", title: "AURA Squid Game Tee",          price: 799,  mrp: 899, image: "/images/W-01.png", gender: "women", sizes:["S","M","L"], colors:["Black"], colorSwatches: { Black: "#0a0a0a"} },
-  { id: "w-01", title: "AURA Squid Game Tee",          price: 799,  mrp: 899, image: "/images/W-01.png", gender: "women", sizes:["S","M","L"], colors:["White"], colorSwatches: { White: "#ffffff" } },
- // { id: "w-02", title: "Everyday Flare Pants",            price: 1399, mrp: 1799, image: "/images/W-02.jpg", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Beige","Black"], colorSwatches: { White: "#f6f6f6" } },
- // { id: "w-13", title: "Minimal Crop Hoodie",             price: 1499, mrp: 1999, image: "/images/W-13.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Lavender","Grey"] },
- // { id: "w-04", title: "Classic Straight Denim",          price: 1699, mrp: 2299, image: "/images/W-04.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Blue"] },
-  //{ id: "w-05", title: "Airy Summer Dress",               price: 1599, mrp: 2199, image: "/images/W-05.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Floral"] },
-  { id: "w-06", title: "AURA Rimberio Tee",                price: 799, mrp: 899, image: "/images/W-06 f.png", gender: "women", sizes:["S","M","L"], colors:["White"], colorSwatches: { White: "#ffffff" } },
-  // explicitly requested:
- // {id: "w-09", title: "Everyday Flare Pants",            price: 1399, mrp: 1799, image: "/images/W-09.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Beige","Black"] },
- // { id: "w-10", title: "Minimal Crop Hoodie",             price: 1499, mrp: 1999, image: "/images/W-10.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Lavender","Grey"] },
- // { id: "w-11", title: "Classic Straight Denim",          price: 1699, mrp: 2299, image: "/images/W-11.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Blue"] },
- // { id: "w-12", title: "Airy Summer Dress",               price: 1599, mrp: 2199, image: "/images/W-12.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Floral"] },
- // { id: "w-07", title: "Soft Touch Tee – Women's",        price: 849,  mrp: 1299, image: "/images/W-07 f.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["White","Black"] },
- // { id: "w-08", title: "Back Graphic Tee – Women's",      price: 899,  mrp: 1399, image: "/images/W-08.png", gender: "women", sizes:["XS","S","M","L","XL"], colors:["Black"] },
-  
+  {
+    id: "w-01-a",
+    title: "AURA Squid Game Tee (Black)",
+    price: 799,
+    mrp: 899,
+    image: "/images/W-01.png",
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["Black"],
+    colorSwatches: { Black: "#0a0a0a" }
+  },
+
+  {
+    id: "w-06-a",
+    title: "AURA Rimberio Tee (Women)",
+    price: 799,
+    mrp: 899,
+    image: "/images/W-06 f.png",
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["White"],
+    colorSwatches: { White: "#ffffff" }
+  },
+
+  {
+    id: "w-01-c",
+    title: "Harry Potter Hoodie (Women)",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/harry_potter_women.png",
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["Off-White"],
+    colorSwatches: { OffWhite: "#fffcfcff" }
+  },
+  {
+    id: "w-02",
+    title: "Squid Game Hoodie (Women)",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/women_squid_game_black_hoodie.png",
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["Black", "Off-White"],
+    colorSwatches: { Black: "#0a0a0a", OffWhite: "#f6f6f6" },
+    imagesByColor: {
+      Black: ["/images/women_squid_game_black_hoodie.png"],
+      OffWhite: ["/images/women_squid_game_white_hoodie.png"]
+    }
+  },
+  {
+    id: "w-04",
+    title: "Stranger Things Hoodie (Women)",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/women_stranger_things_hoodie.png",
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["Black"],
+    colorSwatches: { Black: "#000000" }
+  },
+  {
+    id: "w-jurassic-park",
+    title: "Jurassic Park Hoodie (Women)",
+    price: 1199,
+    mrp: 1399,
+    images: [
+      "/images/women_jurassic_park.png",
+      "/images/women_stranger_things_hoodie.png"
+    ],
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["Off-White"],
+    colorSwatches: { OffWhite: "#fffcfcff" }
+  },
+  {
+    id: "matcha-hoodie",
+    title: "Matcha Hoodie",
+    price: 1199,
+    mrp: 1399,
+    image: "/images/matcha_hoodie.png",
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["Off-White"],
+    colorSwatches: { OffWhite: "#fffcfcff" }
+  },
+  {
+    id: "w-06-b",
+    title: "AURA Race tee (Women)",
+    price: 799,
+    mrp: 899,
+    image: "/images/W-06 f.png",
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["White"],
+    colorSwatches: { White: "#fdf9f9ff" }
+  },
+  {
+    id: "w-05",
+    title: "AURA Race Ready Tee (Women)",
+    price: 799,
+    mrp: 899,
+    image: "/images/women_race_ready_tee.png",
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["Black"],
+    colorSwatches: { Black: "#0a0a0a" }
+  },
+  {
+    id: "w-07",
+    slug: "aura-squid-game-tee-women",
+    title: "AURA Squid Game Tee (Women)",
+    price: 799,
+    mrp: 899,
+    gender: "women",
+    sizes: ["S", "M", "L"],
+    colors: ["Black", "White"],
+    colorSwatches: { Black: "#0a0a0a", White: "#fffcfcff" },
+    image: "/images/women_squid_game_black_tee.png",
+    imagesByColor: {
+      Black: ["/images/women_squid_game_black_tee.png"],
+      White: ["/images/squid_game_white_tee_women.png"]
+    }
+  }
 ];
 
 // Make both import styles work:

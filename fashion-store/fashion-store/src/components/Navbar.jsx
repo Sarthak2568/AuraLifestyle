@@ -1,196 +1,178 @@
+// src/components/Navbar.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useStore } from "../context/StoreContext";
-import AuthModal from "./AuthModal";
+import { useStore } from "@/context/StoreContext";
+import { useTheme } from "@/context/ThemeContext";
 
-function Bars3({ className = "" }) {
+function IconSearch() {
   return (
-    <span className={`inline-flex flex-col justify-between w-6 h-4 ${className}`}>
-      <span className="h-0.5 w-full bg-current rounded" />
-      <span className="h-0.5 w-full bg-current rounded" />
-      <span className="h-0.5 w-full bg-current rounded" />
-    </span>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="11" cy="11" r="6" stroke="currentColor" strokeWidth="1.6"/>
+    </svg>
+  );
+}
+function IconMic() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M19 11v1a7 7 0 0 1-14 0v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12 19v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconPin() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M21 10c0 6-9 13-9 13S3 16 3 10a9 9 0 1 1 18 0z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.4"/>
+    </svg>
+  );
+}
+function IconUser() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="1.4"/>
+    </svg>
+  );
+}
+function IconHeart() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M20.8 7.3a4.4 4.4 0 0 0-6.2 0L12 9.9l-2.6-2.6a4.4 4.4 0 0 0-6.2 6.2L12 21l8.8-8.8a4.4 4.4 0 0 0 0-6.2z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function IconCart() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M6 6h15l-1.6 9.2a2 2 0 0 1-2 1.6H9.2a2 2 0 0 1-2-1.6L5 3H3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="10" cy="20" r="1" fill="currentColor"/>
+      <circle cx="18" cy="20" r="1" fill="currentColor"/>
+    </svg>
+  );
+}
+function IconMenu() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+    </svg>
+  );
+}
+function IconSunMoon({ dark }) {
+  return dark ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.4"/></svg>
   );
 }
 
 export default function Navbar() {
   const { user, logout, cart, wishlist } = useStore();
-  const [openAuth, setOpenAuth] = useState(false);
-  const [openUser, setOpenUser] = useState(false);
-  const [openDrawer, setOpenDrawer] = useState(false);
-  const btnRef = useRef(null);
-  const menuRef = useRef(null);
-  const nav = useNavigate();
+
+  // Defensive: guard if theme context missing
+  const themeCtx = useTheme();
+  const theme = themeCtx?.theme ?? "light";
+  const toggle = themeCtx?.toggle ?? (() => {});
+
+  const navigate = useNavigate();
+
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const ddRef = useRef(null);
 
   useEffect(() => {
-    const onDoc = (e) => {
-      if (!menuRef.current || !btnRef.current) return;
-      if (!menuRef.current.contains(e.target) && !btnRef.current.contains(e.target)) {
-        setOpenUser(false);
-      }
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    function docClick(e) {
+      if (ddRef.current && !ddRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("click", docClick);
+    return () => document.removeEventListener("click", docClick);
   }, []);
 
-  const countCart = cart?.reduce?.((s, i) => s + (i.qty || 1), 0) || 0;
-  const countWish = wishlist?.length || 0;
+  function onSearchSubmit(e) {
+    e.preventDefault();
+    if (!q.trim()) return;
+    navigate(`/search?q=${encodeURIComponent(q.trim())}`);
+  }
 
   return (
-    <>
-      <nav className="fixed top-0 inset-x-0 z-50 bg-neutral-900 text-white">
-        <div className="mx-auto max-w-7xl px-4 h-14 flex items-center justify-between">
-          {/* Left */}
-          <div className="flex items-center gap-6">
-            {/* Hamburger */}
-            <button
-              aria-label="menu"
-              onClick={() => setOpenDrawer(true)}
-              className="p-2 rounded hover:bg-white/10"
-              style={{ marginBottom: '10px' }}
-            >
-              <Bars3 />
+    <header className="w-full border-b bg-white">
+      <div className="max-w-[1500px] mx-auto flex items-center justify-between px-6 py-3">
+        {/* LEFT */}
+        <div className="flex items-center gap-6">
+          <button className="p-2 rounded-md hover:bg-neutral-100">
+            <IconMenu />
+          </button>
+          <nav className="flex items-center gap-6">
+            <Link to="/men" className="text-sm font-semibold">MEN</Link>
+            <Link to="/women" className="text-sm font-semibold">WOMEN</Link>
+          </nav>
+          <Link to="/" className="text-xl font-extrabold tracking-tight ml-2">
+            AURA<span className="font-extrabold">Lifestyle</span>
+          </Link>
+        </div>
+
+        {/* RIGHT */}
+        <div className="flex items-center gap-4 ml-auto pr-0">
+          <form onSubmit={onSearchSubmit} className="flex items-center bg-white border rounded-full shadow-sm h-11 pr-2 w-[260px]">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="What are you looking for?"
+              className="flex-1 px-4 outline-none placeholder:text-neutral-400"
+            />
+            <div className="text-neutral-500 mr-1">
+              <IconMic />
+            </div>
+            <button type="submit" className="text-neutral-700 hover:text-black">
+              <IconSearch />
+            </button>
+          </form>
+
+          <div className="flex items-center gap-3">
+            <button title="Location" className="p-2 rounded-full hover:bg-neutral-100">
+              <IconPin />
+            </button>
+            <button title="Toggle Theme" onClick={toggle} className="p-2 rounded-full hover:bg-neutral-100">
+              <IconSunMoon dark={theme === "dark"} />
             </button>
 
-            {/* Brand */}
-            <Link to="/" className="font-extrabold tracking-wider text-lg">
-              <img src = "/images/logo_image.png" alt = "logo"  height = "50px" width = "160px" style={{ marginTop: '20px' }}/>
-            </Link>
-
-            {/* Primary links */}
-            <Link to="/men" className="opacity-90 hover:opacity-100">
-              MEN
-            </Link>
-            <Link to="/women" className="opacity-90 hover:opacity-100">
-              WOMEN
-            </Link>
-          </div>
-
-          {/* Right */}
-          <div className="relative flex items-center gap-4">
-            <Link to="/search" className="opacity-90 hover:opacity-100">Search</Link>
-
-            <Link to="/wishlist" className="opacity-90 hover:opacity-100">
-              Wishlist{countWish ? <sup className="ml-1 text-xs">({countWish})</sup> : null}
-            </Link>
-
-            <Link to="/cart" className="opacity-90 hover:opacity-100">
-              Cart{countCart ? <sup className="ml-1 text-xs">({countCart})</sup> : null}
-            </Link>
-
-            {user ? (
-              <>
-                <button
-                  ref={btnRef}
-                  onClick={() => setOpenUser((v) => !v)}
-                  className="px-3 py-1 rounded bg-white text-black font-semibold hover:opacity-90"
-                >
-                  {user.name || user.email}
-                </button>
-
-                {/* perfectly aligned user menu (just under the bar, right-aligned) */}
-                {openUser && (
-                  <div
-                    ref={menuRef}
-                    className="absolute right-0 top-14 w-64 rounded-xl bg-white text-neutral-900 shadow-lg border"
-                  >
-                    <div className="px-4 py-3 border-b">
-                      <div className="text-sm opacity-70">Signed in as</div>
-                      <div className="font-semibold truncate">
-                        {user.name || user.email}
-                      </div>
-                    </div>
-
-                    <nav className="p-2 text-sm">
-                      <button
-                        className="w-full text-left px-3 py-2 rounded hover:bg-neutral-100"
-                        onClick={() => { setOpenUser(false); nav("/profile"); }}
-                      >
-                        Profile
-                      </button>
-                      <button
-                        className="w-full text-left px-3 py-2 rounded hover:bg-neutral-100"
-                        onClick={() => { setOpenUser(false); nav("/orders"); }}
-                      >
-                        Orders
-                      </button>
-                      <button
-                        className="w-full text-left px-3 py-2 rounded hover:bg-neutral-100"
-                        onClick={() => { setOpenUser(false); nav("/settings"); }}
-                      >
-                        Settings
-                      </button>
-                      <div className="px-3 pt-2 pb-1">
-                        <div className="text-xs mb-1 opacity-70">Theme</div>
-                        <div className="flex gap-2">
-                          <button
-                            className="px-2 py-1 rounded border"
-                            onClick={() => {
-                              document.documentElement.classList.remove("dark");
-                              localStorage.setItem("theme", "light");
-                            }}
-                          >
-                            Light
-                          </button>
-                          <button
-                            className="px-2 py-1 rounded border"
-                            onClick={() => {
-                              document.documentElement.classList.add("dark");
-                              localStorage.setItem("theme", "dark");
-                            }}
-                          >
-                            Dark
-                          </button>
-                        </div>
-                      </div>
-                      <button
-                        className="w-full text-left px-3 py-2 mt-1 rounded bg-neutral-900 text-white hover:opacity-90"
-                        onClick={() => { setOpenUser(false); logout(); }}
-                      >
-                        Logout
-                      </button>
-                    </nav>
-                  </div>
-                )}
-              </>
-            ) : (
-              <button
-                onClick={() => setOpenAuth(true)}
-                className="px-4 py-2 rounded bg-white text-black font-semibold hover:opacity-90"
-              >
-                Sign in
+            <div className="relative" ref={ddRef}>
+              <button onClick={() => setOpen((v) => !v)} className="p-2 rounded-full hover:bg-neutral-100">
+                <IconUser />
               </button>
-            )}
+              {open && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded shadow-lg border z-50">
+                  <div className="p-3 border-b">
+                    <div className="font-medium">{user?.name || "Guest"}</div>
+                    <div className="text-sm text-neutral-500">{user?.email || "Not signed in"}</div>
+                  </div>
+                  <ul className="py-2 text-sm">
+                    <li><button onClick={() => { setOpen(false); navigate("/orders"); }} className="w-full text-left px-4 py-2 hover:bg-neutral-50">Orders</button></li>
+                    <li><button onClick={() => { setOpen(false); navigate("/profile"); }} className="w-full text-left px-4 py-2 hover:bg-neutral-50">Profile</button></li>
+                    <li><button onClick={() => { setOpen(false); logout?.(); }} className="w-full text-left px-4 py-2 hover:bg-neutral-50 text-red-600">Logout</button></li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <button title="Wishlist" onClick={() => navigate("/wishlist")} className="p-2 rounded-full hover:bg-neutral-100 relative">
+              <IconHeart />
+              {Array.isArray(wishlist) && wishlist.length > 0 && (
+                <span className="absolute -top-1 -right-1 text-xs bg-rose-600 text-white rounded-full px-1">{wishlist.length}</span>
+              )}
+            </button>
+
+            <button title="Cart" onClick={() => navigate("/cart")} className="p-2 rounded-full hover:bg-neutral-100 relative">
+              <IconCart />
+              {Array.isArray(cart) && cart.length > 0 && (
+                <span className="absolute -top-1 -right-1 text-xs bg-rose-600 text-white rounded-full px-1">{cart.length}</span>
+              )}
+            </button>
           </div>
         </div>
-      </nav>
-
-      {/* spacer for fixed nav */}
-      <div className="h-14" />
-
-      {/* Left drawer */}
-      {openDrawer && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/40"
-            onClick={() => setOpenDrawer(false)}
-          />
-          <aside className="fixed z-50 left-0 top-0 h-full w-72 bg-white dark:bg-neutral-900 p-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="font-extrabold">AURALIFESTYLE</div>
-              <button onClick={() => setOpenDrawer(false)} className="p-2">✕</button>
-            </div>
-            <nav className="flex flex-col gap-2 text-sm">
-              <Link onClick={() => setOpenDrawer(false)} to="/women" className="px-3 py-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800">Women</Link>
-              <Link onClick={() => setOpenDrawer(false)} to="/men" className="px-3 py-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800">Men</Link>
-              <Link onClick={() => setOpenDrawer(false)} to="/wishlist" className="px-3 py-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800">Wishlist</Link>
-              <Link onClick={() => setOpenDrawer(false)} to="/cart" className="px-3 py-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800">Cart</Link>
-            </nav>
-          </aside>
-        </>
-      )}
-
-      <AuthModal open={openAuth} onClose={() => setOpenAuth(false)} />
-    </>
+      </div>
+    </header>
   );
 }

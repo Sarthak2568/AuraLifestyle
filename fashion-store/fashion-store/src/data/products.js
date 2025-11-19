@@ -6,8 +6,8 @@ export const ALL_PRODUCTS = [
   {
     id: "m-01",
     title: "Harry Potter Hoodie",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/harry_potter_men.png",
     gender: "men",
     sizes: ["S", "M", "L"],
@@ -17,8 +17,8 @@ export const ALL_PRODUCTS = [
   {
     id: "m-02",
     title: "Squid Game Hoodie",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/men_squid_game_black_hoodie.png",
     gender: "men",
     sizes: ["S", "M", "L"],
@@ -32,8 +32,8 @@ export const ALL_PRODUCTS = [
   {
     id: "m-03",
     title: "Deadpool Hoodie",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/men_deadpool_hoodie.png",
     gender: "men",
     sizes: ["S", "M", "L"],
@@ -43,8 +43,8 @@ export const ALL_PRODUCTS = [
   {
     id: "m-04",
     title: "Stranger Things Hoodie",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/men_stranger_things_hoodie.png",
     gender: "men",
     sizes: ["S", "M", "L"],
@@ -54,8 +54,8 @@ export const ALL_PRODUCTS = [
   {
     id: "jurassic-park",
     title: "Jurassic Park Hoodie",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/men_jurassic_park.png",
     gender: "men",
     sizes: ["S", "M", "L"],
@@ -108,22 +108,9 @@ export const ALL_PRODUCTS = [
     colorSwatches: { Black: "#0a0a0a", White: "#fffcfcff" },
     image: "/images/M-05.jpg",
     imagesByColor: {
-      Black: ["/images/M-05.jpg"],
+      Black: ["/images/M-05.jpg", "/images/Squid-game.png"],
       White: ["/images/squid_game_white_tee_men.png"]
     }
-  },
-
-  {
-    id: "m-05-b",
-    slug: "aura-squid-game-tee-black",
-    title: "AURA Squid Game Tee (Black)",
-    price: 799,
-    mrp: 899,
-    image: "/images/Squid-game.png",
-    gender: "men",
-    sizes: ["S", "M", "L"],
-    colors: ["Black"],
-    colorSwatches: { Black: "#0a0a0a" }
   },
 
   {
@@ -139,17 +126,6 @@ export const ALL_PRODUCTS = [
   },
 
   // ---------- WOMEN ----------
-  {
-    id: "w-01-a",
-    title: "AURA Squid Game Tee (Black)",
-    price: 799,
-    mrp: 899,
-    image: "/images/W-01.png",
-    gender: "women",
-    sizes: ["S", "M", "L"],
-    colors: ["Black"],
-    colorSwatches: { Black: "#0a0a0a" }
-  },
 
   {
     id: "w-06-a",
@@ -166,8 +142,8 @@ export const ALL_PRODUCTS = [
   {
     id: "w-01-c",
     title: "Harry Potter Hoodie (Women)",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/harry_potter_women.png",
     gender: "women",
     sizes: ["S", "M", "L"],
@@ -177,8 +153,8 @@ export const ALL_PRODUCTS = [
   {
     id: "w-02",
     title: "Squid Game Hoodie (Women)",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/women_squid_game_black_hoodie.png",
     gender: "women",
     sizes: ["S", "M", "L"],
@@ -192,8 +168,8 @@ export const ALL_PRODUCTS = [
   {
     id: "w-04",
     title: "Stranger Things Hoodie (Women)",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/women_stranger_things_hoodie.png",
     gender: "women",
     sizes: ["S", "M", "L"],
@@ -203,8 +179,8 @@ export const ALL_PRODUCTS = [
   {
     id: "w-jurassic-park",
     title: "Jurassic Park Hoodie (Women)",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     images: [
       "/images/women_jurassic_park.png",
       "/images/women_stranger_things_hoodie.png"
@@ -217,24 +193,13 @@ export const ALL_PRODUCTS = [
   {
     id: "matcha-hoodie",
     title: "Matcha Hoodie",
-    price: 1199,
-    mrp: 1399,
+    price: 1499,
+    mrp: 1899,
     image: "/images/matcha_hoodie.png",
     gender: "women",
     sizes: ["S", "M", "L"],
     colors: ["Off-White"],
     colorSwatches: { OffWhite: "#fffcfcff" }
-  },
-  {
-    id: "w-06-b",
-    title: "AURA Race tee (Women)",
-    price: 799,
-    mrp: 899,
-    image: "/images/W-06 f.png",
-    gender: "women",
-    sizes: ["S", "M", "L"],
-    colors: ["White"],
-    colorSwatches: { White: "#fdf9f9ff" }
   },
   {
     id: "w-05",
